@@ -53,8 +53,8 @@ public partial class MainWindow : Window
         using (doc)
         {
             var root = doc.RootElement;
-            ShowWindow(root, "five_hour", FivePercent, FiveBar, FiveReset);
-            ShowWindow(root, "seven_day", WeekPercent, WeekBar, WeekReset);
+            ShowWindow(root, "five_hour", FiveRing, FiveReset);
+            ShowWindow(root, "seven_day", WeekRing, WeekReset);
 
             var timestamp = ReadDate(root, "timestamp");
             if (timestamp is null)
@@ -79,7 +79,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private static void ShowWindow(JsonElement root, string name, TextBlock percent, ProgressBar bar, TextBlock reset)
+    private static void ShowWindow(JsonElement root, string name, RingGauge ring, TextBlock reset)
     {
         double? used = null;
         DateTimeOffset? resetsAt = null;
@@ -90,17 +90,9 @@ public partial class MainWindow : Window
             resetsAt = ReadDate(w, "resets_at");
         }
 
-        if (used is null)
-        {
-            percent.Text = "inväntar data";
-            bar.Value = 0;
-        }
-        else
-        {
-            percent.Text = $"{used.Value:0.#} %";
-            bar.Value = Math.Clamp(used.Value, 0, 100);
-            bar.Foreground = used.Value >= 90 ? Red : used.Value >= 75 ? Yellow : Green;
-        }
+        ring.Value = used;
+        if (used is not null)
+            ring.RingBrush = used.Value >= 90 ? Red : used.Value >= 75 ? Yellow : Green;
 
         if (resetsAt is null)
         {
@@ -111,14 +103,13 @@ public partial class MainWindow : Window
             var left = resetsAt.Value - DateTimeOffset.Now;
             if (left < TimeSpan.Zero) left = TimeSpan.Zero;
             var when = resetsAt.Value.LocalDateTime.ToString("ddd d MMM HH:mm", Swedish);
-            reset.Text = $"Återställs {when} (om {FormatSpan(left)})";
+            reset.Text = $"Återställs {when}\n(om {FormatSpan(left)})";
         }
     }
 
     private void ShowNoData(string message)
     {
-        FivePercent.Text = WeekPercent.Text = "inväntar data";
-        FiveBar.Value = WeekBar.Value = 0;
+        FiveRing.Value = WeekRing.Value = null;
         FiveReset.Text = WeekReset.Text = "Återställs: inväntar data";
         Status.Text = message;
         Status.Foreground = Yellow;
