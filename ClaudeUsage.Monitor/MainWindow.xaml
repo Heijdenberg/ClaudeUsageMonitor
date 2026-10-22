@@ -138,6 +138,8 @@
                         <ComboBoxItem Content="Senaste 30 dagarna" Tag="30"/>
                         <ComboBoxItem Content="Allt" Tag="0"/>
                     </ComboBox>
+                    <ComboBox x:Name="SessionFilter" Width="280" Margin="8,0,0,0" DisplayMemberPath="Text"
+                              SelectionChanged="SessionFilter_SelectionChanged"/>
                     <Button Content="Uppdatera" Margin="8,0,0,0" Click="Refresh_Click"/>
                     <TextBlock x:Name="RunsSummary" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="12,0,0,0"
                                TextTrimming="CharacterEllipsis"/>

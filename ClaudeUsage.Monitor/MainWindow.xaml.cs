@@ -21,6 +21,8 @@ public partial class MainWindow : Window
 
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(5) };
     private DateTime _runsLoadedAt = DateTime.MinValue;
+    private List<RunRow> _allRuns = [];
+    private bool _updatingFilter;
 
     public MainWindow()
     {
@@ -148,8 +150,43 @@ public partial class MainWindow : Window
     {
         var days = int.Parse((string)((ComboBoxItem)Period.SelectedItem).Tag);
         var since = days == 0 ? DateTimeOffset.UnixEpoch : DateTimeOffset.Now.AddDays(-days);
-        var runs = RunReport.Load(db, since).Select(r => new RunRow(r)).ToList();
+        _allRuns = RunReport.Load(db, since).Select(r => new RunRow(r)).ToList();
         _runsLoadedAt = DateTime.Now;
+        UpdateSessionFilter();
+        ShowRuns();
+    }
+
+    /// <summary>The sessions in the loaded period, newest first, keeping the current choice.</summary>
+    private void UpdateSessionFilter()
+    {
+        var selected = SelectedSessionId;
+        var options = _allRuns
+            .GroupBy(r => r.SessionId)
+            .OrderByDescending(g => g.Max(r => r.Start))
+            .Select(g => new SessionOption(g.Key, $"{g.First().Session}  ·  {g.First().ShortSessionId}"))
+            .Prepend(new SessionOption(null, "Alla sessioner"))
+            .ToList();
+        // A chosen session with no runs in this period stays chosen, so changing the period doesn't drop the filter.
+        if (selected is not null && options.All(o => o.SessionId != selected))
+            options.Insert(1, new SessionOption(selected, $"{selected[..8]} (inga körningar i perioden)"));
+
+        _updatingFilter = true;
+        SessionFilter.ItemsSource = options;
+        SessionFilter.SelectedItem = options.First(o => o.SessionId == selected);
+        _updatingFilter = false;
+    }
+
+    private string? SelectedSessionId => (SessionFilter.SelectedItem as SessionOption)?.SessionId;
+
+    private void SessionFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_updatingFilter) ShowRuns();
+    }
+
+    private void ShowRuns()
+    {
+        var session = SelectedSessionId;
+        var runs = session is null ? _allRuns : _allRuns.Where(r => r.SessionId == session).ToList();
 
         // Keep the selection and sort order across refreshes.
         var selected = (Runs.SelectedItem as RunRow)?.Key;
@@ -160,7 +197,7 @@ public partial class MainWindow : Window
 
         var cost = runs.Sum(r => r.Cost ?? 0);
         RunsSummary.Text = string.Format(Swedish, "{0:N0} körningar, {1:N0} svar, ≈ {2:N2} $ i API-pris. Uppdaterad {3:HH:mm:ss}.",
-            runs.Count, runs.Sum(r => r.Responses), cost, DateTime.Now);
+            runs.Count, runs.Sum(r => r.Responses), cost, _runsLoadedAt);
     }
 
     private void Runs_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -183,6 +220,9 @@ public partial class MainWindow : Window
         return $"{Math.Max(0, (int)s.TotalSeconds)}s";
     }
 }
+
+/// <summary>An entry in the session filter; a null id means all sessions.</summary>
+public sealed record SessionOption(string? SessionId, string Text);
 
 /// <summary>A run as shown in the grid.</summary>
 public sealed class RunRow(RunSummary run)
