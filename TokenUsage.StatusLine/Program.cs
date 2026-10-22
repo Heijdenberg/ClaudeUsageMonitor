@@ -1,5 +1,5 @@
 using System.Text;
-using ClaudeUsage.Core;
+using TokenUsage.Core;
 
 // Claude Code's status line command. Reads the session JSON from stdin, prints the status line,
 // and records limits and token usage. Run with --import-all to read every session log once.

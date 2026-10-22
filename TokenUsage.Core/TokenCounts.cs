@@ -1,4 +1,4 @@
-namespace ClaudeUsage.Core;
+namespace TokenUsage.Core;
 
 /// <summary>Token counts by type. Thinking tokens are part of <see cref="Output"/>.</summary>
 public sealed record TokenCounts(

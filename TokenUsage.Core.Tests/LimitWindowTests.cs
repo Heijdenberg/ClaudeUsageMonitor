@@ -1,6 +1,6 @@
-using ClaudeUsage.Core;
+using TokenUsage.Core;
 
-namespace ClaudeUsage.Core.Tests;
+namespace TokenUsage.Core.Tests;
 
 public class LimitWindowTests
 {

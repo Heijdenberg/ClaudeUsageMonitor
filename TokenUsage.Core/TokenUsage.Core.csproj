@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="ClaudeUsage.Core.Tests" />
+    <InternalsVisibleTo Include="TokenUsage.Core.Tests" />
   </ItemGroup>
 
 </Project>

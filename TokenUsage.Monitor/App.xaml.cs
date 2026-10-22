@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace ClaudeUsage.Monitor;
+namespace TokenUsage.Monitor;
 
 public partial class App : Application
 {

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace ClaudeUsage.Core;
+namespace TokenUsage.Core;
 
 /// <summary>Short labels and origins for prompts, from user records in a session log.</summary>
 internal static partial class PromptLabel

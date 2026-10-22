@@ -11,7 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ClaudeUsage.Core\ClaudeUsage.Core.csproj" />
+    <ProjectReference Include="..\TokenUsage.Core\TokenUsage.Core.csproj" />
   </ItemGroup>
 
 </Project>

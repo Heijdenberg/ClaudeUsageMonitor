@@ -1,4 +1,4 @@
-namespace ClaudeUsage.Core;
+namespace TokenUsage.Core;
 
 /// <summary>Tokens and API-equivalent cost for one agent (or the main session) and model within a run.</summary>
 public sealed record AgentUsage(string? AgentId, string Name, string Model, TokenCounts Tokens, double? CostUsd);

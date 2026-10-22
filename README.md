@@ -1,13 +1,15 @@
-# ClaudeUsageMonitor
+# TokenUsageMonitor
 
-Visar hur mycket av Claudes femtimmarsgräns och veckogräns som är förbrukat, och vad varje körning av dina agentflöden kostade i tokens.
+Visar hur mycket av Claudes femtimmarsgräns och veckogräns som är förbrukat i Claude Code, och vad varje körning av dina agentflöden kostade i tokens.
+
+Ett fristående hobbyprojekt. Det är inte kopplat till, godkänt av eller sponsrat av Anthropic. Claude och Claude Code är Anthropics varumärken.
 
 | Projekt | Vad det gör |
 |---|---|
-| `ClaudeUsage.StatusLine` | Claude Codes statusradskommando. Skriver ut statusraden, sparar gränserna och läser in tokenförbrukning från Claude Codes sessionsloggar till `%LOCALAPPDATA%\ClaudeUsage\claude-usage.db`. Startar, gör sitt på cirka 30 ms och avslutas. |
-| `ClaudeUsage.Monitor` | WPF-app som läser databasen var 5:e sekund. **Gränser** visar gränserna som ringar, **Körningar** jämför körningar uppdelat per agent och modell. Den skriver ingenting. |
-| `ClaudeUsage.Core` | Delad kod: databas, inläsning av loggar, sammanslagning, priser. |
-| `ClaudeUsage.Core.Tests` | Enhetstester. |
+| `TokenUsage.StatusLine` | Claude Codes statusradskommando. Skriver ut statusraden, sparar gränserna och läser in tokenförbrukning från Claude Codes sessionsloggar till `%LOCALAPPDATA%\TokenUsage\token-usage.db`. Startar, gör sitt på cirka 30 ms och avslutas. |
+| `TokenUsage.Monitor` | WPF-app som läser databasen var 5:e sekund. **Gränser** visar gränserna som ringar, **Körningar** jämför körningar uppdelat per agent och modell. Den skriver ingenting. |
+| `TokenUsage.Core` | Delad kod: databas, inläsning av loggar, sammanslagning, priser. |
+| `TokenUsage.Core.Tests` | Enhetstester. |
 
 ## Vad som sparas
 
@@ -19,7 +21,7 @@ Visar hur mycket av Claudes femtimmarsgräns och veckogräns som är förbrukat,
 
 Statusraden läser sin egen sessions logg vid varje körning och kontrollerar alla loggar högst en gång i minuten. Därför kommer även headless-körningar med `claude -p` med, så länge någon interaktiv session är öppen.
 
-**API-pris** är vad tokens skulle kosta på Anthropics API, enligt listpriserna i `ClaudeUsage.Core/Pricing.cs`. Det är ett sätt att väga tokentyper och modeller mot varandra, inte vad prenumerationen kostar. Användning på claude.ai eller i skrivbordsappens chatt finns inte i loggarna.
+**API-pris** är vad tokens skulle kosta på Anthropics API, enligt listpriserna i `TokenUsage.Core/Pricing.cs`. Det är ett sätt att väga tokentyper och modeller mot varandra, inte vad prenumerationen kostar. Användning på claude.ai eller i skrivbordsappens chatt finns inte i loggarna.
 
 ## Använda appen
 
@@ -41,13 +43,13 @@ Kräver Windows, .NET 8 SDK och, för Native AOT-bygget, Visual Studios arbetsbe
 ```powershell
 # AOT-kompilatorn i .NET 8 letar efter vswhere.exe i PATH.
 $env:PATH = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer;$env:PATH"
-dotnet publish ClaudeUsage.StatusLine -c Release -r win-x64 -o "$env:USERPROFILE\.claude\claude-usage"
+dotnet publish TokenUsage.StatusLine -c Release -r win-x64 -o "$env:USERPROFILE\.claude\token-usage"
 
 # Läs in befintliga sessionsloggar en gång (tar några sekunder).
-& "$env:USERPROFILE\.claude\claude-usage\ClaudeUsage.StatusLine.exe" --import-all
+& "$env:USERPROFILE\.claude\token-usage\TokenUsage.StatusLine.exe" --import-all
 
 # Starta appen.
-dotnet run --project ClaudeUsage.Monitor
+dotnet run --project TokenUsage.Monitor
 ```
 
 Utan C++-arbetsbelastningen: publicera med `-p:PublishAot=false` i stället. Då krävs .NET 8-runtime, och programmet startar långsammare.
@@ -57,7 +59,7 @@ Peka sedan Claude Codes statusrad på exe-filen i `%USERPROFILE%\.claude\setting
 ```json
 "statusLine": {
   "type": "command",
-  "command": "C:/Users/<ANVÄNDARNAMN>/.claude/claude-usage/ClaudeUsage.StatusLine.exe",
+  "command": "C:/Users/<ANVÄNDARNAMN>/.claude/token-usage/TokenUsage.StatusLine.exe",
   "refreshInterval": 5
 }
 ```
@@ -67,24 +69,24 @@ För att uppdatera exe-filen senare publicerar du igen. Om en session råkar kö
 ## Testa
 
 ```powershell
-dotnet test ClaudeUsage.Core.Tests
+dotnet test TokenUsage.Core.Tests
 ```
 
-För att prova exe-filen utan att röra riktig data: peka `CLAUDE_USAGE_DIR` på en testmapp, och `CLAUDE_CONFIG_DIR` på en tom mapp om loggarna ska hoppas över.
+För att prova exe-filen utan att röra riktig data: peka `TOKEN_USAGE_DIR` på en testmapp, och `CLAUDE_CONFIG_DIR` på en tom mapp om loggarna ska hoppas över.
 
 ```powershell
-$env:CLAUDE_USAGE_DIR = Join-Path $env:TEMP 'usage-test'
+$env:TOKEN_USAGE_DIR = Join-Path $env:TEMP 'usage-test'
 $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-'{"rate_limits":{"five_hour":{"used_percentage":42,"resets_at":' + ($now+8100) + '}}}' | & "$env:USERPROFILE\.claude\claude-usage\ClaudeUsage.StatusLine.exe"
+'{"rate_limits":{"five_hour":{"used_percentage":42,"resets_at":' + ($now+8100) + '}}}' | & "$env:USERPROFILE\.claude\token-usage\TokenUsage.StatusLine.exe"
 # 5h: 42% (återställs om 2h 14m) | 7d: inväntar data
-Remove-Item $env:CLAUDE_USAGE_DIR -Recurse -Force; Remove-Item Env:CLAUDE_USAGE_DIR
+Remove-Item $env:TOKEN_USAGE_DIR -Recurse -Force; Remove-Item Env:TOKEN_USAGE_DIR
 ```
 
-Om något går fel när data sparas skrivs statusraden ändå ut, och det senaste felet hamnar i `%LOCALAPPDATA%\ClaudeUsage\claude-usage-error.txt`.
+Om något går fel när data sparas skrivs statusraden ändå ut, och det senaste felet hamnar i `%LOCALAPPDATA%\TokenUsage\token-usage-error.txt`.
 
 ## Databasen
 
-`%LOCALAPPDATA%\ClaudeUsage\claude-usage.db`, SQLite i WAL-läge. Den ligger i din egen profil, eftersom sessionsnamn och agentbeskrivningar säger en del om vad du arbetar med, och i Local (inte Roaming) eftersom SQLite-filer inte tål att synkas.
+`%LOCALAPPDATA%\TokenUsage\token-usage.db`, SQLite i WAL-läge. Den ligger i din egen profil, eftersom sessionsnamn och agentbeskrivningar säger en del om vad du arbetar med, och i Local (inte Roaming) eftersom SQLite-filer inte tål att synkas.
 
 | Tabell | Innehåll |
 |---|---|

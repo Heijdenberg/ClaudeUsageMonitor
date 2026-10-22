@@ -1,11 +1,11 @@
 using System.Data;
 using Microsoft.Data.Sqlite;
 
-namespace ClaudeUsage.Core;
+namespace TokenUsage.Core;
 
 /// <summary>
-/// claude-usage.db: limit percentages over time and token usage per response from Claude Code's session logs.
-/// ClaudeUsage.StatusLine writes it (many short-lived processes at once); ClaudeUsage.Monitor only reads it.
+/// token-usage.db: limit percentages over time and token usage per response from Claude Code's session logs.
+/// TokenUsage.StatusLine writes it (many short-lived processes at once); TokenUsage.Monitor only reads it.
 /// Times are stored as Unix milliseconds, reset times as Unix seconds.
 /// </summary>
 public sealed class UsageDatabase : IDisposable
@@ -109,7 +109,7 @@ public sealed class UsageDatabase : IDisposable
     /// <summary>Opens an existing database read-only. Throws if it doesn't exist yet.</summary>
     public static UsageDatabase OpenReadOnly(string path)
     {
-        if (!File.Exists(path)) throw new FileNotFoundException("claude-usage.db finns inte än.", path);
+        if (!File.Exists(path)) throw new FileNotFoundException("token-usage.db finns inte än.", path);
         return Open($"Data Source={path};Mode=ReadOnly;Pooling=False");
     }
 

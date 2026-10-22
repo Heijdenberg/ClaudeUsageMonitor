@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 
-namespace ClaudeUsage.Core;
+namespace TokenUsage.Core;
 
 /// <summary>Tolerant accessors: a missing or wrongly typed property reads as null.</summary>
 internal static class Json

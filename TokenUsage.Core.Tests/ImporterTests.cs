@@ -1,6 +1,6 @@
-using ClaudeUsage.Core;
+using TokenUsage.Core;
 
-namespace ClaudeUsage.Core.Tests;
+namespace TokenUsage.Core.Tests;
 
 public sealed class ImporterTests : IDisposable
 {
@@ -21,7 +21,7 @@ public sealed class ImporterTests : IDisposable
         _agentLog = Path.Combine(subagents, "agent-abc123.jsonl");
         File.WriteAllText(Path.Combine(subagents, "agent-abc123.meta.json"),
             """{"agentType":"planner","description":"Plan the change","toolUseId":"toolu_1","model":"opus"}""");
-        _db = UsageDatabase.OpenForWriting(Path.Combine(_root, "claude-usage.db"));
+        _db = UsageDatabase.OpenForWriting(Path.Combine(_root, "token-usage.db"));
     }
 
     public void Dispose()
