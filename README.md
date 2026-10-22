@@ -110,5 +110,5 @@ Skriptet startar PowerShell vid varje körning, cirka 0,5 s per gång.
 
 ## Bra att veta
 
-- `rate_limits` finns bara för Pro- och Max-prenumeranter, och först efter sessionens första svar från API:et.
+- Gränserna finns bara med en Pro- eller Max-prenumeration. Använder du Claude Code med en API-nyckel finns inga gränser att visa: statusraden och ringarna visar "inväntar data", men fliken Körningar fungerar som vanligt eftersom tokendatan kommer från sessionsloggarna. Med en prenumeration dyker värdena upp efter sessionens första svar.
 - Procenten ändras bara när Claude Code får ett svar från API:et. Ett svar räknas när det är klart, inte medan det skrivs.
