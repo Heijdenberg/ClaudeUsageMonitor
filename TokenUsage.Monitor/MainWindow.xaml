@@ -93,6 +93,47 @@
             </Setter>
         </Style>
 
+        <Style TargetType="ContextMenu">
+            <Setter Property="Foreground" Value="#E6E6E6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="#2B2B2B" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="4" CornerRadius="4">
+                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="MenuItem">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="Item" Background="Transparent" Padding="10,6" CornerRadius="3">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"/>
+                                <TextBlock Grid.Column="1" Text="{TemplateBinding InputGestureText}" Margin="24,0,0,0"
+                                           Foreground="{StaticResource Muted}"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Item" Property="Background" Value="#3A3A3A"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Item" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="DataGrid">
             <Setter Property="Background" Value="#1E1E1E"/>
             <Setter Property="Foreground" Value="#E6E6E6"/>
@@ -213,7 +254,15 @@
                                        TextTrimming="CharacterEllipsis"/>
                         </DockPanel>
 
-                        <DataGrid x:Name="Runs" Grid.Row="1" SelectionChanged="Runs_SelectionChanged">
+                        <DataGrid x:Name="Runs" Grid.Row="1" SelectionChanged="Runs_SelectionChanged"
+                                  ContextMenuOpening="Runs_ContextMenuOpening" PreviewKeyDown="Runs_PreviewKeyDown">
+                            <DataGrid.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Kopiera rad" InputGestureText="Ctrl+C" Click="CopyRow_Click"/>
+                                    <MenuItem x:Name="CopyCellItem" Click="CopyCell_Click"/>
+                                    <MenuItem x:Name="SessionFilterItem" Click="SessionFilterItem_Click"/>
+                                </ContextMenu>
+                            </DataGrid.ContextMenu>
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Start" Binding="{Binding Start, StringFormat='ddd d MMM HH:mm'}" SortMemberPath="Start"/>
                                 <DataGridTextColumn Header="Session" Binding="{Binding Session}" Width="150"/>

@@ -10,16 +10,27 @@ public sealed record AgentUsage(string? AgentId, string Name, string Model, Toke
 public sealed record RunSummary(
     string SessionId, string? SessionTitle, string? PromptId, string Label,
     DateTimeOffset Start, DateTimeOffset End, TokenCounts Tokens, double? CostUsd,
-    IReadOnlyList<AgentUsage> Agents);
+    IReadOnlyList<AgentUsage> Agents, PromptSource? Prompt);
+
+/// <summary>Where a run's message is in Claude Code's log. The database holds no prompt text.</summary>
+public sealed record PromptSource(string LogPath, long LogOffset, string PromptId)
+{
+    /// <summary>The whole message, or null once the log no longer holds it.</summary>
+    public string? ReadText() => PromptLabel.ReadTextFromLog(LogPath, LogOffset, PromptId);
+}
 
 public static class RunReport
 {
     private const string MainSession = "Huvudsession";
 
-    /// <summary>Runs with responses since the given time, newest first.</summary>
+    /// <summary>
+    /// Runs that started at or after the given time, newest first. A run starts when you send the message
+    /// and belongs to the period it started in; it is always shown whole, including responses after the
+    /// period or, for a run without a known message, from its first response.
+    /// </summary>
     public static IReadOnlyList<RunSummary> Load(UsageDatabase db, DateTimeOffset since)
     {
-        var groups = LoadGroups(db, since);
+        var groups = LoadRunGroups(db, since);
         if (groups.Count == 0) return [];
 
         var sessions = groups.Select(g => g.SessionId).ToHashSet();
@@ -38,7 +49,7 @@ public static class RunReport
         var titles = LoadSessionTitles(db, sessions);
         var agentNames = LoadAgentNames(db, sessions);
 
-        return groups
+        var runs = groups
             .GroupBy(g => g.PromptId is not null && headOf.TryGetValue(g.PromptId, out var head)
                 ? (g.SessionId, RunKey: head.PromptId) : (g.SessionId, RunKey: "?"))
             .Select(run =>
@@ -58,19 +69,28 @@ public static class RunReport
                     run.Key.SessionId, titles.GetValueOrDefault(run.Key.SessionId),
                     head?.PromptId,
                     head is null ? "(utan prompt)" : LabelOf(head),
-                    run.Min(g => g.First), run.Max(g => g.Last),
-                    run.Aggregate(TokenCounts.Zero, (sum, g) => sum + g.Tokens), SumCost(run), agents);
-            })
-            .OrderByDescending(r => r.Start)
-            .ToList();
+                    head?.At ?? run.Min(g => g.First), run.Max(g => g.Last),
+                    run.Aggregate(TokenCounts.Zero, (sum, g) => sum + g.Tokens), SumCost(run), agents,
+                    head?.LogPath is null ? null : new PromptSource(head.LogPath, head.LogOffset, head.PromptId));
+            });
+        return runs.Where(r => r.Start >= since).OrderByDescending(r => r.Start).ToList();
     }
 
-    /// <summary>Tokens and API-equivalent cost of all responses since the given time.</summary>
-    public static (TokenCounts Tokens, double? CostUsd) Totals(UsageDatabase db, DateTimeOffset since)
+    /// <summary>Tokens and API-equivalent cost of the responses from <paramref name="from"/> up to, not including, <paramref name="until"/>.</summary>
+    public static (TokenCounts Tokens, double? CostUsd) Totals(UsageDatabase db, DateTimeOffset from, DateTimeOffset until)
     {
-        var groups = LoadGroups(db, since);
+        var groups = LoadGroups(db, "at >= $from AND at < $until",
+            ("$from", from.ToUnixTimeMilliseconds()), ("$until", until.ToUnixTimeMilliseconds()));
         return (groups.Aggregate(TokenCounts.Zero, (sum, g) => sum + g.Tokens), SumCost(groups));
     }
+
+    // Every response in the sessions where something happened since the given time, so runs that started
+    // in the period are complete; runs that started earlier are dropped once their start is known.
+    private static List<Group> LoadRunGroups(UsageDatabase db, DateTimeOffset since) =>
+        LoadGroups(db, """
+            session_id IN (SELECT session_id FROM prompts WHERE at >= $since
+                           UNION SELECT session_id FROM responses WHERE at >= $since)
+            """, ("$since", since.ToUnixTimeMilliseconds()));
 
     // Unknown models count as zero; the cost is null only when nothing at all could be priced.
     private static double? SumCost(IEnumerable<Group> groups)
@@ -85,7 +105,7 @@ public static class RunReport
         string SessionId, string? PromptId, string? AgentId, string Model,
         TokenCounts Tokens, double? CostUsd, DateTimeOffset First, DateTimeOffset Last);
 
-    private static List<Group> LoadGroups(UsageDatabase db, DateTimeOffset since)
+    private static List<Group> LoadGroups(UsageDatabase db, string where, params (string Name, long Value)[] parameters)
     {
         // Grouped by prompt length too, since Haiku 5.5 has a separate price above 100K tokens.
         using var cmd = db.Command($"""
@@ -93,10 +113,10 @@ public static class RunReport
                    (input_tokens + cache_read_tokens + cache_write_5m_tokens + cache_write_1h_tokens) > {Pricing.HaikuLongPromptTokens} AS long_prompt,
                    count(*), sum(input_tokens), sum(output_tokens), sum(thinking_tokens), sum(cache_read_tokens),
                    sum(cache_write_5m_tokens), sum(cache_write_1h_tokens), sum(web_search_requests), min(at), max(at)
-            FROM responses WHERE at >= $since
+            FROM responses WHERE {where}
             GROUP BY session_id, prompt_id, agent_id, model, speed, long_prompt
             """);
-        cmd.Parameters.AddWithValue("$since", since.ToUnixTimeMilliseconds());
+        foreach (var (name, value) in parameters) cmd.Parameters.AddWithValue(name, value);
         using var r = cmd.ExecuteReader();
         var result = new List<Group>();
         while (r.Read())
@@ -113,17 +133,17 @@ public static class RunReport
         return result;
     }
 
-    private sealed record Prompt(string PromptId, string Origin, string? Command, string? LogPath, long LogOffset);
+    private sealed record Prompt(string PromptId, DateTimeOffset At, string Origin, string? Command, string? LogPath, long LogOffset);
 
     private static List<Prompt> LoadPrompts(UsageDatabase db, string sessionId)
     {
-        using var cmd = db.Command("SELECT prompt_id, origin, command, log_path, log_offset FROM prompts WHERE session_id = $s ORDER BY at, rowid");
+        using var cmd = db.Command("SELECT prompt_id, at, origin, command, log_path, log_offset FROM prompts WHERE session_id = $s ORDER BY at, rowid");
         cmd.Parameters.AddWithValue("$s", sessionId);
         using var r = cmd.ExecuteReader();
         var result = new List<Prompt>();
         while (r.Read())
-            result.Add(new Prompt(r.GetString(0), r.GetString(1), r.IsDBNull(2) ? null : r.GetString(2),
-                r.IsDBNull(3) ? null : r.GetString(3), r.IsDBNull(4) ? 0 : r.GetInt64(4)));
+            result.Add(new Prompt(r.GetString(0), DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(1)), r.GetString(2),
+                r.IsDBNull(3) ? null : r.GetString(3), r.IsDBNull(4) ? null : r.GetString(4), r.IsDBNull(5) ? 0 : r.GetInt64(5)));
         return result;
     }
 

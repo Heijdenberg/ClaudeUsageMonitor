@@ -24,6 +24,14 @@ public class LimitWindowTests
     }
 
     [Fact]
+    public void A_window_is_expired_from_its_reset_time()
+    {
+        Assert.False(new LimitWindow(42, Reset).IsExpired(Reset.AddSeconds(-1)));
+        Assert.True(new LimitWindow(42, Reset).IsExpired(Reset));
+        Assert.False(new LimitWindow(42, null).IsExpired(Reset));
+    }
+
+    [Fact]
     public void A_later_reset_means_a_new_window()
     {
         var incoming = new LimitWindow(2, Reset.AddHours(5));

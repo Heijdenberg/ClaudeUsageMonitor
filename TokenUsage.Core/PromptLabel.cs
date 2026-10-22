@@ -55,7 +55,14 @@ internal static partial class PromptLabel
     /// Reads a message's label from Claude Code's log at the stored position. Null when the log has been
     /// removed or no longer holds that message there.
     /// </summary>
-    public static string? ReadFromLog(string path, long offset, string promptId)
+    public static string? ReadFromLog(string path, long offset, string promptId) =>
+        ReadRecord(path, offset, promptId, record => FromMessage(record) is (var label, true) ? label : null);
+
+    /// <summary>The whole message as you wrote it, read from the log the same way; "/cmd args" for a slash command.</summary>
+    public static string? ReadTextFromLog(string path, long offset, string promptId) =>
+        ReadRecord(path, offset, promptId, record => FromMessage(record).IsMessage ? FullText(record) : null);
+
+    private static string? ReadRecord(string path, long offset, string promptId, Func<JsonElement, string?> read)
     {
         try
         {
@@ -67,10 +74,23 @@ internal static partial class PromptLabel
             while ((b = stream.ReadByte()) is not (-1 or '\n')) line.WriteByte((byte)b);
             using var doc = JsonDocument.Parse(line.GetBuffer().AsMemory(0, (int)line.Length));
             if (Json.String(doc.RootElement, "promptId") != promptId) return null;
-            var (label, isMessage) = FromMessage(doc.RootElement);
-            return isMessage ? label : null;
+            return read(doc.RootElement);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { return null; }
+    }
+
+    private static string? FullText(JsonElement record)
+    {
+        var content = Json.Object(record, "message").GetProperty("content");
+        var text = content.ValueKind == JsonValueKind.String
+            ? content.GetString() ?? ""
+            : string.Join("\n\n", content.EnumerateArray().Where(b => Json.String(b, "type") == "text").Select(b => Json.String(b, "text")));
+        if (CommandName().Match(text) is { Success: true } cmd)
+        {
+            var args = CommandArgs().Match(text) is { Success: true } a ? a.Groups[1].Value.Trim() : "";
+            return args.Length > 0 ? cmd.Groups[1].Value.Trim() + " " + args : cmd.Groups[1].Value.Trim();
+        }
+        return text.Trim() is { Length: > 0 } t ? t : null;
     }
 
     public static string Origin(JsonElement record, string label)

@@ -3,6 +3,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -15,7 +16,7 @@ public partial class MainWindow : Window
 {
     private static readonly TimeSpan StaleAfter = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan RunsRefreshInterval = TimeSpan.FromSeconds(30);
-    private static readonly CultureInfo Swedish = CultureInfo.GetCultureInfo("sv-SE");
+    internal static readonly CultureInfo Swedish = CultureInfo.GetCultureInfo("sv-SE");
 
     private static readonly Brush Green = new SolidColorBrush(Color.FromRgb(0x4C, 0xAF, 0x50));
     private static readonly Brush Yellow = new SolidColorBrush(Color.FromRgb(0xE0, 0xB0, 0x30));
@@ -25,6 +26,7 @@ public partial class MainWindow : Window
     private DateTime _runsLoadedAt = DateTime.MinValue;
     private List<RunRow> _allRuns = [];
     private bool _updatingFilter;
+    private string? _menuCellText; // the right-clicked cell's value, for "Kopiera cell"
     private bool _systemFrame;   // Windows 11 rounds the corners and draws the border itself
 
     public MainWindow()
@@ -169,26 +171,38 @@ public partial class MainWindow : Window
 
     private static void ShowWindow(UsageDatabase db, StoredLimit? limit, TimeSpan length, RingGauge ring, TextBlock reset, TextBlock spend)
     {
-        var used = limit?.Window.UsedPercentage;
-        ring.Value = used;
-        if (used is not null)
-            ring.RingBrush = used.Value >= 90 ? Red : used.Value >= 75 ? Yellow : Green;
-
         if (limit?.Window.ResetsAt is not DateTimeOffset resetsAt)
         {
+            ShowUsed(ring, limit?.Window.UsedPercentage);
             reset.Text = "Återställs: inväntar data";
             spend.Text = "";
             return;
         }
 
-        var left = resetsAt - DateTimeOffset.Now;
-        if (left < TimeSpan.Zero) left = TimeSpan.Zero;
-        reset.Text = $"Återställs {resetsAt.LocalDateTime.ToString("ddd d MMM HH:mm", Swedish)}\n(om {FormatSpan(left)})";
+        // Claude Code usage logged in the window, which ends at the reset time. Usage elsewhere (claude.ai, the app) isn't in the logs.
+        var (tokens, cost) = RunReport.Totals(db, resetsAt - length, resetsAt);
+        var now = DateTimeOffset.Now;
+        var expired = limit.Window.IsExpired(now);
+        spend.Text = string.Format(Swedish, "{0}: {1:N0} svar, {2:N0} utskrivna tokens\n≈ {3:N2} $ i API-pris",
+            expired ? "Förra fönstret" : "I fönstret", tokens.Responses, tokens.Output, cost ?? 0);
 
-        // Claude Code usage logged since the window started. Usage elsewhere (claude.ai, the app) isn't in the logs.
-        var (tokens, cost) = RunReport.Totals(db, resetsAt - length);
-        spend.Text = string.Format(Swedish, "I fönstret: {0:N0} svar, {1:N0} utskrivna tokens\n≈ {2:N2} $ i API-pris",
-            tokens.Responses, tokens.Output, cost ?? 0);
+        if (expired)
+        {
+            // The old percentage no longer applies; the next window gets values when a session reports again.
+            ShowUsed(ring, null);
+            reset.Text = $"Återställdes {resetsAt.LocalDateTime.ToString("ddd d MMM HH:mm", Swedish)}\ninväntar nya värden";
+            return;
+        }
+
+        ShowUsed(ring, limit.Window.UsedPercentage);
+        reset.Text = $"Återställs {resetsAt.LocalDateTime.ToString("ddd d MMM HH:mm", Swedish)}\n(om {FormatSpan(resetsAt - now)})";
+    }
+
+    private static void ShowUsed(RingGauge ring, double? used)
+    {
+        ring.Value = used;
+        if (used is not null)
+            ring.RingBrush = used.Value >= 90 ? Red : used.Value >= 75 ? Yellow : Green;
     }
 
     private void ShowNoData(string message)
@@ -293,6 +307,83 @@ public partial class MainWindow : Window
         DetailsTitle.Text = $"{run.Label}  ·  session {run.SessionId}";
     }
 
+    private void Runs_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        // The menu acts on the row under the mouse, so select it first; outside the rows there is no menu.
+        if (ItemsControl.ContainerFromElement(Runs, (DependencyObject)e.OriginalSource) is not DataGridRow { Item: RunRow run } row)
+        {
+            e.Handled = true;
+            return;
+        }
+        row.IsSelected = true;
+
+        var cell = FindParent<DataGridCell>((DependencyObject)e.OriginalSource);
+        _menuCellText = cell is null ? null : CellText(cell, run);
+        CopyCellItem.Visibility = _menuCellText is null ? Visibility.Collapsed : Visibility.Visible;
+        CopyCellItem.Header = cell is null ? "" : $"Kopiera cell ({cell.Column.Header})";
+
+        SessionFilterItem.Header = SelectedSessionId is null
+            ? $"Visa bara sessionen {run.Session}  ·  {run.ShortSessionId}"
+            : "Visa alla sessioner";
+    }
+
+    // The prompt and the id are copied in full, not as shortened in the grid.
+    private static string? CellText(DataGridCell cell, RunRow run) =>
+        ((cell.Column as DataGridBoundColumn)?.Binding as System.Windows.Data.Binding)?.Path.Path switch
+        {
+            nameof(RunRow.Label) => run.PromptText(),
+            nameof(RunRow.ShortSessionId) => run.SessionId,
+            _ => (cell.Content as TextBlock)?.Text,
+        };
+
+    private static T? FindParent<T>(DependencyObject? element) where T : DependencyObject
+    {
+        while (element is not null and not T)
+            element = element is Visual ? VisualTreeHelper.GetParent(element) : LogicalTreeHelper.GetParent(element);
+        return element as T;
+    }
+
+    private void CopyCell_Click(object sender, RoutedEventArgs e)
+    {
+        if (_menuCellText is not null) SetClipboard(_menuCellText);
+    }
+
+    private void Runs_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        // Ctrl+C copies the row with the whole prompt, not just the cells as shown.
+        if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            CopyRow();
+            e.Handled = true;
+        }
+    }
+
+    private void CopyRow_Click(object sender, RoutedEventArgs e) => CopyRow();
+
+    private void CopyRow()
+    {
+        if (Runs.SelectedItem is RunRow run) SetClipboard(run.ToClipboardText());
+    }
+
+    private void SetClipboard(string text)
+    {
+        try
+        {
+            Clipboard.SetText(text);
+        }
+        catch (ExternalException ex)   // another program is holding the clipboard
+        {
+            RunsSummary.Text = $"Kunde inte kopiera: {ex.Message}";
+        }
+    }
+
+    private void SessionFilterItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (Runs.SelectedItem is not RunRow run) return;
+        var session = SelectedSessionId is null ? run.SessionId : null;
+        SessionFilter.SelectedItem = ((IEnumerable<SessionOption>)SessionFilter.ItemsSource).First(o => o.SessionId == session);
+    }
+
     internal static string FormatSpan(TimeSpan s)
     {
         if (s.TotalDays >= 1) return $"{(int)s.TotalDays}d {s.Hours}h";
@@ -315,6 +406,27 @@ public sealed class RunRow(RunSummary run)
     // The id never changes, unlike the name; the first 8 characters are enough to tell sessions apart.
     public string ShortSessionId => run.SessionId[..8];
     public string Label => run.Label;
+
+    /// <summary>The whole prompt, read from the log (the database holds no prompt text); the label once the log is gone.</summary>
+    public string PromptText() => run.Prompt?.ReadText() ?? Label;
+
+    /// <summary>
+    /// The row as labelled lines, with the whole prompt and the full session id.
+    /// </summary>
+    public string ToClipboardText()
+    {
+        var sv = MainWindow.Swedish;
+        return string.Join(Environment.NewLine,
+            "Start: " + Start.ToString("ddd d MMM HH:mm", sv),
+            $"Session: {Session} ({SessionId})",
+            "Prompt: " + PromptText(),
+            "Tid: " + Duration,
+            string.Format(sv, "Svar: {0:N0}", Responses),
+            string.Format(sv, "Utskrivet: {0:N0}", Output),
+            string.Format(sv, "Cacheläsning: {0:N0}", CacheRead),
+            string.Format(sv, "Cacheskrivning: {0:N0}", CacheWrite),
+            "API-pris: " + (Cost is double c ? string.Format(sv, "{0:N2} $", c) : "–"));
+    }
     public double DurationSeconds => (run.End - run.Start).TotalSeconds;
     public string Duration => MainWindow.FormatSpan(run.End - run.Start);
     public long Responses => run.Tokens.Responses;

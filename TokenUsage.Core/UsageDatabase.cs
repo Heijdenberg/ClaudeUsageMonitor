@@ -10,7 +10,7 @@ namespace TokenUsage.Core;
 /// </summary>
 public sealed class UsageDatabase : IDisposable
 {
-    private const int SchemaVersion = 3;
+    private const int SchemaVersion = 4;
 
     // Each message you send gets a prompt id; everything it triggers, subagents included, carries it.
     // No text is stored: only where the message is in Claude Code's log, and the command name for
@@ -44,7 +44,8 @@ public sealed class UsageDatabase : IDisposable
             cache_write_1h_tokens INTEGER NOT NULL, web_search_requests INTEGER NOT NULL);
         CREATE INDEX IF NOT EXISTS ix_responses_at ON responses (at);
         -- How far each session log has been read, and the prompt in effect at that point.
-        CREATE TABLE IF NOT EXISTS log_files (path TEXT PRIMARY KEY, offset INTEGER NOT NULL, prompt_id TEXT);
+        -- meta_stamp: size and write time of a subagent log's .meta.json when it was last read.
+        CREATE TABLE IF NOT EXISTS log_files (path TEXT PRIMARY KEY, offset INTEGER NOT NULL, prompt_id TEXT, meta_stamp TEXT);
         """;
 
     static UsageDatabase() => SQLitePCL.Batteries_V2.Init();
@@ -68,6 +69,7 @@ public sealed class UsageDatabase : IDisposable
                 db.Execute(Schema, tx);
                 if (version is > 0 and < 2) Upgrade1To2(db, tx);
                 if (version is > 0 and < 3) Upgrade2To3(db, tx);
+                if (version is > 0 and < 4) Upgrade3To4(db, tx);
                 db.Execute(PromptsTable, tx);
                 db.Execute($"PRAGMA user_version={SchemaVersion}", tx);
             }
@@ -93,6 +95,13 @@ public sealed class UsageDatabase : IDisposable
         db.Execute("DROP TABLE IF EXISTS prompts", tx);
         db.Execute("DELETE FROM log_files", tx);
         db.SetMeta("vacuum_pending", "1", tx);
+    }
+
+    /// <summary>Tracks subagent metadata on its own, so it is read again when only the .meta.json changes.</summary>
+    private static void Upgrade3To4(UsageDatabase db, SqliteTransaction tx)
+    {
+        // A new database gets the column from Schema; earlier versions created log_files without it.
+        db.Execute("ALTER TABLE log_files ADD COLUMN meta_stamp TEXT", tx);
     }
 
     private void VacuumIfPending()

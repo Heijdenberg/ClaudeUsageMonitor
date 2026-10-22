@@ -20,15 +20,20 @@ public sealed class TranscriptImporter(UsageDatabase db)
             ImportFile(file, maxBytesPerFile);
     }
 
-    /// <summary>Imports every log under the projects directory that has grown since it was last read.</summary>
+    /// <summary>
+    /// Imports every log under the projects directory that has grown since it was last read, or whose
+    /// subagent metadata has changed.
+    /// </summary>
     public void ImportAll(string projectsDir, long maxBytesPerFile = long.MaxValue)
     {
         if (!Directory.Exists(projectsDir)) return;
-        var offsets = LoadOffsets();
+        var stored = LoadLogStates();
         var files = new DirectoryInfo(projectsDir).EnumerateFiles("*.jsonl", SearchOption.AllDirectories);
         foreach (var file in files)
         {
-            if (offsets.TryGetValue(Key(file.FullName), out var offset) && offset == file.Length) continue;
+            if (stored.TryGetValue(Key(file.FullName), out var state) && state.Offset == file.Length
+                && state.MetaStamp == MetaStamp(file.FullName))
+                continue;
             ImportFile(file.FullName, maxBytesPerFile);
         }
     }
@@ -53,28 +58,34 @@ public sealed class TranscriptImporter(UsageDatabase db)
         var key = Key(path);
 
         using var tx = db.Begin();
-        var (offset, promptId) = ReadOffset(key, tx);
+        var (offset, promptId, metaStamp) = ReadLogState(key, tx);
+        // A subagent's .meta.json is written apart from its log, possibly after the last line.
+        // Stamped before it is read, so a change while reading is picked up next time.
+        var newMetaStamp = MetaStamp(path);
+        var metaChanged = newMetaStamp != metaStamp;
 
-        byte[] chunk;
+        byte[] chunk = [];
         using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
         {
             if (stream.Length < offset) (offset, promptId) = (0, null);   // the file was replaced
-            if (stream.Length == offset) return;
-            stream.Position = offset;
-            chunk = new byte[(int)Math.Min(stream.Length - offset, Math.Min(maxBytes, int.MaxValue - 1))];
-            stream.ReadExactly(chunk);
-            // A single line longer than the limit: read on to its end so the import can't get stuck.
-            if (Array.LastIndexOf(chunk, (byte)'\n') < 0 && stream.Position < stream.Length)
+            if (stream.Length > offset)
             {
-                var rest = new byte[stream.Length - stream.Position];
-                stream.ReadExactly(rest);
-                chunk = [.. chunk, .. rest];
+                stream.Position = offset;
+                chunk = new byte[(int)Math.Min(stream.Length - offset, Math.Min(maxBytes, int.MaxValue - 1))];
+                stream.ReadExactly(chunk);
+                // A single line longer than the limit: read on to its end so the import can't get stuck.
+                if (Array.LastIndexOf(chunk, (byte)'\n') < 0 && stream.Position < stream.Length)
+                {
+                    var rest = new byte[stream.Length - stream.Position];
+                    stream.ReadExactly(rest);
+                    chunk = [.. chunk, .. rest];
+                }
             }
         }
 
         // Only whole lines; a line still being written is read next time.
         var end = Array.LastIndexOf(chunk, (byte)'\n') + 1;
-        if (end == 0) return;
+        if (end == 0 && !metaChanged) return;
 
         if (source.AgentId is not null) UpsertAgent(source, path, tx);
         UpsertSession(source, tx);
@@ -91,13 +102,14 @@ public sealed class TranscriptImporter(UsageDatabase db)
         }
 
         using (var cmd = db.Command("""
-            INSERT INTO log_files (path, offset, prompt_id) VALUES ($p, $o, $prompt)
-            ON CONFLICT (path) DO UPDATE SET offset = $o, prompt_id = $prompt
+            INSERT INTO log_files (path, offset, prompt_id, meta_stamp) VALUES ($p, $o, $prompt, $meta)
+            ON CONFLICT (path) DO UPDATE SET offset = $o, prompt_id = $prompt, meta_stamp = $meta
             """, tx))
         {
             cmd.Parameters.AddWithValue("$p", key);
             cmd.Parameters.AddWithValue("$o", offset + end);
             cmd.Parameters.AddWithValue("$prompt", (object?)promptId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$meta", (object?)newMetaStamp ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         }
         tx.Commit();
@@ -244,21 +256,29 @@ public sealed class TranscriptImporter(UsageDatabase db)
         cmd.ExecuteNonQuery();
     }
 
-    private (long Offset, string? PromptId) ReadOffset(string key, SqliteTransaction tx)
+    private (long Offset, string? PromptId, string? MetaStamp) ReadLogState(string key, SqliteTransaction tx)
     {
-        using var cmd = db.Command("SELECT offset, prompt_id FROM log_files WHERE path = $p", tx);
+        using var cmd = db.Command("SELECT offset, prompt_id, meta_stamp FROM log_files WHERE path = $p", tx);
         cmd.Parameters.AddWithValue("$p", key);
         using var r = cmd.ExecuteReader();
-        return r.Read() ? (r.GetInt64(0), r.IsDBNull(1) ? null : r.GetString(1)) : (0, null);
+        return r.Read() ? (r.GetInt64(0), r.IsDBNull(1) ? null : r.GetString(1), r.IsDBNull(2) ? null : r.GetString(2)) : (0, null, null);
     }
 
-    private Dictionary<string, long> LoadOffsets()
+    private Dictionary<string, (long Offset, string? MetaStamp)> LoadLogStates()
     {
-        var result = new Dictionary<string, long>();
-        using var cmd = db.Command("SELECT path, offset FROM log_files");
+        var result = new Dictionary<string, (long, string?)>();
+        using var cmd = db.Command("SELECT path, offset, meta_stamp FROM log_files");
         using var r = cmd.ExecuteReader();
-        while (r.Read()) result[r.GetString(0)] = r.GetInt64(1);
+        while (r.Read()) result[r.GetString(0)] = (r.GetInt64(1), r.IsDBNull(2) ? null : r.GetString(2));
         return result;
+    }
+
+    /// <summary>Size and write time of a subagent log's .meta.json ("" while it is missing); null for a session's main log.</summary>
+    private static string? MetaStamp(string logPath)
+    {
+        if (LogSource.FromPath(logPath)?.AgentId is null) return null;
+        var meta = new FileInfo(Path.ChangeExtension(logPath, ".meta.json"));
+        return meta.Exists ? $"{meta.Length}:{meta.LastWriteTimeUtc.Ticks}" : "";
     }
 
     private static string Key(string path) => Path.GetFullPath(path).ToLowerInvariant();

@@ -6,6 +6,12 @@ public sealed record LimitWindow(double? UsedPercentage, DateTimeOffset? ResetsA
     public static readonly LimitWindow Empty = new(null, null);
 
     /// <summary>
+    /// The reset time has passed: the percentage belongs to the previous window, and the next one
+    /// only gets values when a session reports again.
+    /// </summary>
+    public bool IsExpired(DateTimeOffset now) => ResetsAt <= now;
+
+    /// <summary>
     /// Several Claude Code sessions report the same windows, each with its own last-received values.
     /// Never let an idle session's older numbers overwrite newer ones.
     /// </summary>

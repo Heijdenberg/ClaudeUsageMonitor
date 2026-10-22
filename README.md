@@ -15,7 +15,7 @@ Ett fristående hobbyprojekt. Det är inte kopplat till, godkänt av eller spons
 
 - **Gränser.** Claude Code skickar `rate_limits.five_hour` och `rate_limits.seven_day` till statusraden. Flera sessioner rapporterar samtidigt, och en session som står still fortsätter rapportera gamla värden. Därför slås värdena ihop: inom ett fönster kan procenten bara öka, och en senare återställningstid betyder ett nytt fönster. Varje ändring sparas i `limit_history`.
 - **Tokens per svar**, från `%USERPROFILE%\.claude\projects\**\*.jsonl`: inmatning, utskrivet (varav tänkande), cacheläsning, cacheskrivning (5 min och 1 h), webbsökningar och modell. Ett svar som loggas på flera rader räknas en gång.
-- **Körningar.** Varje meddelande du skickar har ett `promptId`, och allt det sätter igång bär samma id: underagenter, svar via `AskUserQuestion` och verktygssvar. En körning är ett meddelande plus eventuella notiser från bakgrundsagenter som följer, fram till ditt nästa meddelande. Underagenternas namn kommer från deras `.meta.json` (agenttyp och beskrivning).
+- **Körningar.** Varje meddelande du skickar har ett `promptId`, och allt det sätter igång bär samma id: underagenter, svar via `AskUserQuestion` och verktygssvar. En körning är ett meddelande plus eventuella notiser från bakgrundsagenter som följer, fram till ditt nästa meddelande. Underagenternas namn kommer från deras `.meta.json` (agenttyp och beskrivning), som läses igen när den ändras, även om agentens logg har slutat växa.
 - **Sessionsnamn.** Ditt eget namn från `/rename` i första hand, annars namnet som Claude Code genererar automatiskt (`ai-title` i loggen; det kan ändras medan sessionen pågår). Session-id:t ändras aldrig och visas därför i en egen kolumn.
 - **Ingen text ur dina meddelanden.** Ett meddelande kan innehålla hemligheter, till exempel en nyckel, så databasen sparar bara var meddelandet finns i Claude Codes logg (fil och position). Appen läser första raden därifrån när den visas. För slash-kommandon sparas kommandonamnet, till exempel `/workflow`, men aldrig det som står efter. När Claude Code har rensat bort en logg (som standard efter 30 dagar) visas bara kommandonamnet, eller "(texten finns inte längre i loggen)".
 
@@ -27,12 +27,14 @@ Statusraden läser sin egen sessions logg vid varje körning och kontrollerar al
 
 **Gränser**
 - En ring per fönster, med procent, när fönstret återställs och tid kvar. Färgen blir gul från 75 % och röd från 90 %.
-- Under varje ring: antal svar, utskrivna tokens och API-pris sedan fönstret började, enligt Claude Codes loggar.
+- Under varje ring: antal svar, utskrivna tokens och API-pris i fönstret, enligt Claude Codes loggar.
+- När återställningstiden har passerat visas ingen procent. Ringen visar "inväntar data" tills en session rapporterar nya värden, och summeringen gäller förra fönstret.
 - Längst ner: när en session senast rapporterade och när procenten senast ändrades. Har ingen session rapporterat på 30 sekunder visas en varning.
 
 **Körningar**
-- Välj **tidsperiod** (24 timmar, 7 dagar, 30 dagar eller allt) och **session** (alla, eller en enskild med namn och id). Filtren kombineras, och sammanfattningen överst räknar bara det som visas.
-- Varje rad är en körning: start, sessionens namn och id, första raden i ditt meddelande, tid, antal svar, tokens och API-pris. Klicka på en kolumnrubrik för att sortera.
+- Välj **tidsperiod** (24 timmar, 7 dagar, 30 dagar eller allt) och **session** (alla, eller en enskild med namn och id). Filtren kombineras, och sammanfattningen överst räknar bara det som visas. En körning hör till perioden den startade i och visas alltid hel, även svar som kom efter periodens slut. En körning som startade före perioden visas inte.
+- Varje rad är en körning: start (när du skickade meddelandet), sessionens namn och id, första raden i ditt meddelande, tid från meddelandet till sista svaret, antal svar, tokens och API-pris. Klicka på en kolumnrubrik för att sortera.
+- Högerklicka på en rad för att kopiera hela raden (även Ctrl+C) eller bara cellen, eller för att visa bara den sessionen. Prompten och sessions-id:t kopieras i sin helhet. Prompten läses då från Claude Codes logg och hamnar i urklipp, och därmed i Windows urklippshistorik om den är påslagen.
 - Välj en körning för att se den uppdelad per agent och modell: huvudsessionen och varje underagent för sig, med inmatning, utskrivet, tänkande, cacheläsning, cacheskrivning och API-pris.
 - Listan uppdateras var 30:e sekund medan fliken är öppen, eller direkt med **Uppdatera**. Valt filter, vald rad och sortering behålls.
 
