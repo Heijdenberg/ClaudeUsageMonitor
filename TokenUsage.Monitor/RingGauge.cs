@@ -27,12 +27,18 @@ public class RingGauge : FrameworkElement
         nameof(Foreground), typeof(Brush), typeof(RingGauge),
         new FrameworkPropertyMetadata(Brushes.White, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty CaptionProperty = DependencyProperty.Register(
+        nameof(Caption), typeof(string), typeof(RingGauge),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
     /// <summary>Percentage 0–100, or null when there is no data yet.</summary>
     public double? Value { get => (double?)GetValue(ValueProperty); set => SetValue(ValueProperty, value); }
     public Brush RingBrush { get => (Brush)GetValue(RingBrushProperty); set => SetValue(RingBrushProperty, value); }
     public Brush TrackBrush { get => (Brush)GetValue(TrackBrushProperty); set => SetValue(TrackBrushProperty, value); }
     public double Thickness { get => (double)GetValue(ThicknessProperty); set => SetValue(ThicknessProperty, value); }
     public Brush Foreground { get => (Brush)GetValue(ForegroundProperty); set => SetValue(ForegroundProperty, value); }
+    /// <summary>Small text under the percentage, such as "använt".</summary>
+    public string? Caption { get => (string?)GetValue(CaptionProperty); set => SetValue(CaptionProperty, value); }
 
     protected override void OnRender(DrawingContext dc)
     {
@@ -61,7 +67,19 @@ public class RingGauge : FrameworkElement
             : new FormattedText("inväntar\ndata", CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface, size * 0.1, Foreground, dpi);
         text.MaxTextWidth = size;
         text.TextAlignment = TextAlignment.Center;
-        dc.DrawText(text, new Point(center.X - size / 2, center.Y - text.Height / 2));
+
+        if (Value is null || string.IsNullOrEmpty(Caption))
+        {
+            dc.DrawText(text, new Point(center.X - size / 2, center.Y - text.Height / 2));
+            return;
+        }
+        var caption = new FormattedText(Caption, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+            new Typeface("Segoe UI"), size * 0.09, Foreground, dpi) { MaxTextWidth = size, TextAlignment = TextAlignment.Center };
+        var top = center.Y - (text.Height + caption.Height) / 2;
+        dc.DrawText(text, new Point(center.X - size / 2, top));
+        dc.PushOpacity(0.6);
+        dc.DrawText(caption, new Point(center.X - size / 2, top + text.Height));
+        dc.Pop();
     }
 
     // Arc clockwise from 12 o'clock covering the given fraction of the circle.

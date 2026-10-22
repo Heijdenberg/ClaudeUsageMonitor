@@ -231,8 +231,29 @@ public sealed class UsageDatabase : IDisposable
             r.IsDBNull(3) ? null : DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(3)));
     }
 
+    /// <summary>
+    /// How the percentage grew in the window that resets at the given time, oldest first. Sessions report
+    /// the reset time with a few seconds' jitter, so anything within a minute of it is the same window.
+    /// </summary>
+    public IReadOnlyList<LimitPoint> ReadLimitHistory(string window, DateTimeOffset resetsAt)
+    {
+        using var cmd = Command("""
+            SELECT at, used_percentage FROM limit_history
+            WHERE window = $w AND resets_at BETWEEN $r - 60 AND $r + 60 ORDER BY at, id
+            """);
+        cmd.Parameters.AddWithValue("$w", window);
+        cmd.Parameters.AddWithValue("$r", resetsAt.ToUnixTimeSeconds());
+        using var r = cmd.ExecuteReader();
+        var result = new List<LimitPoint>();
+        while (r.Read()) result.Add(new LimitPoint(DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(0)), r.GetDouble(1)));
+        return result;
+    }
+
     private static long? ToSeconds(DateTimeOffset? d) => d?.ToUnixTimeSeconds();
 }
 
 /// <summary>A window as stored: when a session last reported it, and when the values last changed.</summary>
 public sealed record StoredLimit(LimitWindow Window, DateTimeOffset CheckedAt, DateTimeOffset? ChangedAt);
+
+/// <summary>A window's percentage from a point in time until the next change.</summary>
+public sealed record LimitPoint(DateTimeOffset At, double UsedPercentage);

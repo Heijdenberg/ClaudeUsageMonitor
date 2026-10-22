@@ -26,16 +26,17 @@ Statusraden läser sin egen sessions logg vid varje körning och kontrollerar al
 ## Använda appen
 
 **Gränser**
-- En ring per fönster, med procent, när fönstret återställs och tid kvar. Färgen blir gul från 75 % och röd från 90 %.
-- Under varje ring: antal svar, utskrivna tokens och API-pris i fönstret, enligt Claude Codes loggar.
-- När återställningstiden har passerat visas ingen procent. Ringen visar "inväntar data" tills en session rapporterar nya värden, och summeringen gäller förra fönstret.
-- Längst ner: när en session senast rapporterade och när procenten senast ändrades. Har ingen session rapporterat på 30 sekunder visas en varning.
+- Ett kort per fönster. Störst står hur mycket som är kvar och hur länge tills fönstret återställs, med exakt datum och klockslag under. Ringen visar hur mycket som är använt. Färgen blir gul från 75 % och röd från 90 %.
+- Längst ner på kortet: antal svar, utskrivna tokens och API-pris i fönstret, enligt Claude Codes loggar.
+- Under varje kort: en kurva över hur procenten har vuxit i fönstret, från gränshistoriken. Den streckade linjen visar en jämn takt som når 100 % precis vid återställningen; ligger kurvan under den räcker fönstret.
+- När återställningstiden har passerat visas ingen procent. Ringen visar "inväntar data" tills en session rapporterar nya värden, och summeringen och kurvan gäller förra fönstret.
+- Längst ner: en grön punkt och "Uppdaterad nyss" när sessionerna rapporterar. Punkten blir gul om ingen session har rapporterat på 30 sekunder, och röd om databasen inte går att läsa. Håll muspekaren över raden för att se när en session senast rapporterade och när procenten senast ändrades.
 
 **Körningar**
-- Välj **tidsperiod** (24 timmar, 7 dagar, 30 dagar eller allt) och **session** (alla, eller en enskild med namn och id). Filtren kombineras, och sammanfattningen överst räknar bara det som visas. En körning hör till perioden den startade i och visas alltid hel, även svar som kom efter periodens slut. En körning som startade före perioden visas inte.
-- Varje rad är en körning: start (när du skickade meddelandet), sessionens namn och id, första raden i ditt meddelande, tid från meddelandet till sista svaret, antal svar, tokens och API-pris. Klicka på en kolumnrubrik för att sortera.
-- Högerklicka på en rad för att kopiera hela raden (även Ctrl+C) eller bara cellen, eller för att visa bara den sessionen. Prompten och sessions-id:t kopieras i sin helhet. Prompten läses då från Claude Codes logg och hamnar i urklipp, och därmed i Windows urklippshistorik om den är påslagen.
-- Välj en körning för att se den uppdelad per agent och modell: huvudsessionen och varje underagent för sig, med inmatning, utskrivet, tänkande, cacheläsning, cacheskrivning och API-pris.
+- Välj **tidsperiod** (24 timmar, 7 dagar, 30 dagar eller allt) och **session** (alla, eller en enskild med namn och id). Filtren kombineras, och korten med antal körningar, svar och API-pris räknar bara det som visas. En körning hör till perioden den startade i och visas alltid hel, även svar som kom efter periodens slut. En körning som startade före perioden visas inte.
+- Varje rad är en körning: start (när du skickade meddelandet), första raden i ditt meddelande, sessionens namn (sessions-id:t visas när du håller muspekaren över namnet), tid från meddelandet till sista svaret, antal svar, tokens och API-pris. Följer flera rader från samma session på varandra tonas namnet ned. Bakom API-priset ligger en stapel i proportion till den dyraste körningen i listan. Klicka på en kolumnrubrik för att sortera.
+- Högerklicka på en rad för att kopiera hela raden (även Ctrl+C) eller bara cellen, eller för att visa bara den sessionen. Högerklickar du i Prompt-cellen kan du också välja **Visa hela prompten**, som öppnar texten i ett eget fönster där den går att markera och kopiera. Prompten läses från Claude Codes logg när du kopierar eller öppnar den och sparas aldrig, men en kopierad prompt hamnar i urklipp, och därmed i Windows urklippshistorik om den är påslagen.
+- Välj en körning för att se den i detaljpanelen: start, session, tid och pris överst, och därunder körningen uppdelad per agent och modell. Huvudsessionen och varje underagent visas för sig, med inmatning, utskrivet, tänkande, cacheläsning, cacheskrivning och API-pris, och en stapel som jämför agenternas kostnad.
 - Listan uppdateras var 30:e sekund medan fliken är öppen, eller direkt med **Uppdatera**. Valt filter, vald rad och sortering behålls.
 
 ## Bygga och installera

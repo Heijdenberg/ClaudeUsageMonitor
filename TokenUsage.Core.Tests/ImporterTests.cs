@@ -338,4 +338,21 @@ public sealed class ImporterTests : IDisposable
         Assert.Equal(now.AddSeconds(15), five.CheckedAt);
         Assert.Equal(now, _db.ReadLimit(UsageDatabase.SevenDay)!.ChangedAt);
     }
+
+    [Fact]
+    public void Limit_history_is_read_per_window()
+    {
+        var now = DateTimeOffset.FromUnixTimeSeconds(1_800_000_000);
+        var reset = now.AddHours(2);
+        var week = new LimitWindow(3, now.AddDays(5));
+        _db.UpdateLimits(new StatusInput(new LimitWindow(10, reset), week, null), now);
+        _db.UpdateLimits(new StatusInput(new LimitWindow(25, reset.AddSeconds(2)), week, null), now.AddMinutes(30));   // jitter
+        _db.UpdateLimits(new StatusInput(new LimitWindow(1, reset.AddHours(5)), week, null), reset.AddMinutes(1));     // next window
+
+        var history = _db.ReadLimitHistory(UsageDatabase.FiveHour, reset);
+        Assert.Equal([10.0, 25.0], history.Select(p => p.UsedPercentage));
+        Assert.Equal([now, now.AddMinutes(30)], history.Select(p => p.At));
+        Assert.Equal(1, Assert.Single(_db.ReadLimitHistory(UsageDatabase.FiveHour, reset.AddHours(5))).UsedPercentage);
+        Assert.Equal(3, Assert.Single(_db.ReadLimitHistory(UsageDatabase.SevenDay, now.AddDays(5))).UsedPercentage);
+    }
 }

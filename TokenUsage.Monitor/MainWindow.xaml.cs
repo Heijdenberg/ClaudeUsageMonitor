@@ -18,9 +18,6 @@ public partial class MainWindow : Window
     private static readonly TimeSpan RunsRefreshInterval = TimeSpan.FromSeconds(30);
     internal static readonly CultureInfo Swedish = CultureInfo.GetCultureInfo("sv-SE");
 
-    private static readonly Brush Green = new SolidColorBrush(Color.FromRgb(0x4C, 0xAF, 0x50));
-    private static readonly Brush Yellow = new SolidColorBrush(Color.FromRgb(0xE0, 0xB0, 0x30));
-    private static readonly Brush Red = new SolidColorBrush(Color.FromRgb(0xE0, 0x50, 0x50));
 
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(5) };
     private DateTime _runsLoadedAt = DateTime.MinValue;
@@ -64,16 +61,25 @@ public partial class MainWindow : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        var hwnd = new WindowInteropHelper(this).Handle;
+        _systemFrame = UseSystemFrame(this);
+        UpdateFrame();
+    }
+
+    /// <summary>
+    /// Sets up a borderless window: maximizing stays within the work area, and on Windows 11 the corners are
+    /// rounded with a border in the app's line color. False on Windows 10, where the window keeps its own
+    /// square 1 px frame from the XAML.
+    /// </summary>
+    internal static bool UseSystemFrame(Window window)
+    {
+        var hwnd = new WindowInteropHelper(window).Handle;
         HwndSource.FromHwnd(hwnd).AddHook(WndProc);
 
-        // Windows 11 doesn't round borderless windows by default; ask for it, with a border in the app's line color.
-        // Fails on Windows 10, which keeps the square 1 px frame from the XAML.
         const int DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWCP_ROUND = 2, DWMWA_BORDER_COLOR = 34;
-        int round = DWMWCP_ROUND, borderColor = 0x003A3A3A;   // COLORREF 0x00BBGGRR
-        _systemFrame = Native.DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int)) == 0;
-        if (_systemFrame) Native.DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref borderColor, sizeof(int));
-        UpdateFrame();
+        int round = DWMWCP_ROUND, borderColor = 0x00413A37;   // COLORREF 0x00BBGGRR: the theme's Line, #373A41
+        if (Native.DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int)) != 0) return false;
+        Native.DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref borderColor, sizeof(int));
+        return true;
     }
 
     /// <summary>
@@ -132,7 +138,7 @@ public partial class MainWindow : Window
         catch (SqliteException ex)
         {
             // Keep the last values and try again on the next tick.
-            Status.Text = $"Kunde inte läsa databasen just nu ({ex.Message}). Försöker igen om 5 s.";
+            SetStatus(LimitCard.Red, "Kunde inte läsa databasen", $"{ex.Message}\nFörsöker igen om 5 s.");
         }
     }
 
@@ -142,8 +148,9 @@ public partial class MainWindow : Window
     {
         var five = db.ReadLimit(UsageDatabase.FiveHour);
         var week = db.ReadLimit(UsageDatabase.SevenDay);
-        ShowWindow(db, five, TimeSpan.FromHours(5), FiveRing, FiveReset, FiveSpend);
-        ShowWindow(db, week, TimeSpan.FromDays(7), WeekRing, WeekReset, WeekSpend);
+        var now = DateTimeOffset.Now;
+        ShowLimit(db, FiveCard, UsageDatabase.FiveHour, five, TimeSpan.FromHours(5), now);
+        ShowLimit(db, WeekCard, UsageDatabase.SevenDay, week, TimeSpan.FromDays(7), now);
 
         var checkedAt = new[] { five?.CheckedAt, week?.CheckedAt }.Max();
         if (checkedAt is null)
@@ -152,66 +159,41 @@ public partial class MainWindow : Window
             return;
         }
 
-        var age = DateTimeOffset.Now - checkedAt.Value;
-        var text = $"Senast rapporterat {checkedAt.Value.LocalDateTime:HH:mm:ss} ({FormatSpan(age)} sedan).";
+        // A short line with the details in its tooltip.
+        var age = now - checkedAt.Value;
+        var details = $"Senast rapporterat {checkedAt.Value.LocalDateTime:HH:mm:ss} ({FormatSpan(age)} sedan).";
         var changedAt = new[] { five?.ChangedAt, week?.ChangedAt }.Max();
         if (changedAt is not null)
-            text += $" Procenten ändrades senast {changedAt.Value.LocalDateTime:HH:mm} ({FormatSpan(DateTimeOffset.Now - changedAt.Value)} sedan).";
+            details += $"\nProcenten ändrades senast {changedAt.Value.LocalDateTime:HH:mm} ({FormatSpan(now - changedAt.Value)} sedan).";
         if (age > StaleAfter)
-        {
-            Status.Text = text + "\nIngen session rapporterar – körs Claude Code?";
-            Status.Foreground = Yellow;
-        }
+            SetStatus(LimitCard.Yellow, "Ingen session rapporterar – körs Claude Code?", details);
         else
-        {
-            Status.Text = text;
-            Status.ClearValue(TextBlock.ForegroundProperty);
-        }
+            SetStatus(LimitCard.Green, age < TimeSpan.FromSeconds(10) ? "Uppdaterad nyss" : $"Uppdaterad för {FormatSpan(age)} sedan", details);
     }
 
-    private static void ShowWindow(UsageDatabase db, StoredLimit? limit, TimeSpan length, RingGauge ring, TextBlock reset, TextBlock spend)
+    // Claude Code usage logged in the window, which ends at the reset time. Usage elsewhere (claude.ai, the app) isn't in the logs.
+    private static void ShowLimit(UsageDatabase db, LimitCard card, string window, StoredLimit? limit, TimeSpan length, DateTimeOffset now)
     {
         if (limit?.Window.ResetsAt is not DateTimeOffset resetsAt)
         {
-            ShowUsed(ring, limit?.Window.UsedPercentage);
-            reset.Text = "Återställs: inväntar data";
-            spend.Text = "";
+            card.Show(limit, length, null, null, now);
             return;
         }
-
-        // Claude Code usage logged in the window, which ends at the reset time. Usage elsewhere (claude.ai, the app) isn't in the logs.
-        var (tokens, cost) = RunReport.Totals(db, resetsAt - length, resetsAt);
-        var now = DateTimeOffset.Now;
-        var expired = limit.Window.IsExpired(now);
-        spend.Text = string.Format(Swedish, "{0}: {1:N0} svar, {2:N0} utskrivna tokens\n≈ {3:N2} $ i API-pris",
-            expired ? "Förra fönstret" : "I fönstret", tokens.Responses, tokens.Output, cost ?? 0);
-
-        if (expired)
-        {
-            // The old percentage no longer applies; the next window gets values when a session reports again.
-            ShowUsed(ring, null);
-            reset.Text = $"Återställdes {resetsAt.LocalDateTime.ToString("ddd d MMM HH:mm", Swedish)}\ninväntar nya värden";
-            return;
-        }
-
-        ShowUsed(ring, limit.Window.UsedPercentage);
-        reset.Text = $"Återställs {resetsAt.LocalDateTime.ToString("ddd d MMM HH:mm", Swedish)}\n(om {FormatSpan(resetsAt - now)})";
+        card.Show(limit, length, RunReport.Totals(db, resetsAt - length, resetsAt), db.ReadLimitHistory(window, resetsAt), now);
     }
 
-    private static void ShowUsed(RingGauge ring, double? used)
+    private void SetStatus(Brush dot, string text, string details)
     {
-        ring.Value = used;
-        if (used is not null)
-            ring.RingBrush = used.Value >= 90 ? Red : used.Value >= 75 ? Yellow : Green;
+        StatusDot.Fill = dot;
+        Status.Text = text;
+        StatusLine.ToolTip = details;
     }
 
     private void ShowNoData(string message)
     {
-        FiveRing.Value = WeekRing.Value = null;
-        FiveReset.Text = WeekReset.Text = "Återställs: inväntar data";
-        FiveSpend.Text = WeekSpend.Text = "";
-        Status.Text = message;
-        Status.Foreground = Yellow;
+        FiveCard.ShowNoData();
+        WeekCard.ShowNoData();
+        SetStatus(LimitCard.Yellow, "Ingen data än", message);
     }
 
     // ---- Runs tab ----
@@ -289,10 +271,29 @@ public partial class MainWindow : Window
         Runs.ItemsSource = runs;
         foreach (var s in sort) Runs.Items.SortDescriptions.Add(s);
         Runs.SelectedItem = runs.FirstOrDefault(r => r.Key == selected);
+        MarkRepeatedSessions();
+        var maxCost = runs.Max(r => r.Cost) ?? 0;
+        foreach (var r in runs) r.CostShare = maxCost > 0 ? (r.Cost ?? 0) / maxCost : 0;
 
-        var cost = runs.Sum(r => r.Cost ?? 0);
-        RunsSummary.Text = string.Format(Swedish, "{0:N0} körningar, {1:N0} svar, ≈ {2:N2} $ i API-pris. Uppdaterad {3:HH:mm:ss}.",
-            runs.Count, runs.Sum(r => r.Responses), cost, _runsLoadedAt);
+        RunCount.Text = runs.Count.ToString("N0", Swedish);
+        ResponseCount.Text = runs.Sum(r => r.Responses).ToString("N0", Swedish);
+        CostTotal.Text = string.Format(Swedish, "≈ {0:N2} $", runs.Sum(r => r.Cost ?? 0));
+        RunsSummary.Text = $"Uppdaterad {_runsLoadedAt:HH:mm:ss}";
+    }
+
+    private void Runs_Sorting(object sender, DataGridSortingEventArgs e) =>
+        // The grid sorts after this event; mark the rows once it has.
+        Dispatcher.BeginInvoke(MarkRepeatedSessions, DispatcherPriority.Background);
+
+    /// <summary>Fades the session name on rows in the same session as the row above, in the order shown.</summary>
+    private void MarkRepeatedSessions()
+    {
+        string? previous = null;
+        foreach (RunRow row in Runs.Items)
+        {
+            row.SameSessionAsAbove = row.SessionId == previous;
+            previous = row.SessionId;
+        }
     }
 
     private void Runs_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -304,7 +305,7 @@ public partial class MainWindow : Window
             return;
         }
         Agents.ItemsSource = run.Agents;
-        DetailsTitle.Text = $"{run.Label}  ·  session {run.SessionId}";
+        DetailsTitle.Text = run.Details;
     }
 
     private void Runs_ContextMenuOpening(object sender, ContextMenuEventArgs e)
@@ -321,26 +322,43 @@ public partial class MainWindow : Window
         _menuCellText = cell is null ? null : CellText(cell, run);
         CopyCellItem.Visibility = _menuCellText is null ? Visibility.Collapsed : Visibility.Visible;
         CopyCellItem.Header = cell is null ? "" : $"Kopiera cell ({cell.Column.Header})";
+        // Only on the prompt cell, where the text is shortened.
+        ShowPromptItem.Visibility = IsPromptColumn(cell?.Column) ? Visibility.Visible : Visibility.Collapsed;
 
         SessionFilterItem.Header = SelectedSessionId is null
             ? $"Visa bara sessionen {run.Session}  ·  {run.ShortSessionId}"
             : "Visa alla sessioner";
     }
 
-    // The prompt and the id are copied in full, not as shortened in the grid.
+    // The prompt is copied in full, not as shortened in the grid; other cells as shown.
     private static string? CellText(DataGridCell cell, RunRow run) =>
-        ((cell.Column as DataGridBoundColumn)?.Binding as System.Windows.Data.Binding)?.Path.Path switch
-        {
-            nameof(RunRow.Label) => run.PromptText(),
-            nameof(RunRow.ShortSessionId) => run.SessionId,
-            _ => (cell.Content as TextBlock)?.Text,
-        };
+        IsPromptColumn(cell.Column) ? run.PromptText() : FindChild<TextBlock>(cell)?.Text;
+
+    private static bool IsPromptColumn(DataGridColumn? column) =>
+        ((column as DataGridBoundColumn)?.Binding as System.Windows.Data.Binding)?.Path.Path == nameof(RunRow.Label);
+
+    private void ShowPrompt_Click(object sender, RoutedEventArgs e)
+    {
+        if (Runs.SelectedItem is not RunRow run) return;
+        // Read from Claude Code's log when opened; shown, never stored.
+        new PromptWindow(run.PromptText(), run.Details) { Owner = this }.Show();
+    }
 
     private static T? FindParent<T>(DependencyObject? element) where T : DependencyObject
     {
         while (element is not null and not T)
             element = element is Visual ? VisualTreeHelper.GetParent(element) : LogicalTreeHelper.GetParent(element);
         return element as T;
+    }
+
+    private static T? FindChild<T>(DependencyObject element) where T : DependencyObject
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(element); i++)
+        {
+            var child = VisualTreeHelper.GetChild(element, i);
+            if ((child as T ?? FindChild<T>(child)) is T found) return found;
+        }
+        return null;
     }
 
     private void CopyCell_Click(object sender, RoutedEventArgs e)
@@ -397,14 +415,45 @@ public partial class MainWindow : Window
 public sealed record SessionOption(string? SessionId, string Text);
 
 /// <summary>A run as shown in the grid.</summary>
-public sealed class RunRow(RunSummary run)
+public sealed class RunRow(RunSummary run) : System.ComponentModel.INotifyPropertyChanged
 {
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
     public (string, string?) Key { get; } = (run.SessionId, run.PromptId);
     public string SessionId => run.SessionId;
     public DateTime Start => run.Start.LocalDateTime;
     public string Session => run.SessionTitle ?? "–";
     // The id never changes, unlike the name; the first 8 characters are enough to tell sessions apart.
     public string ShortSessionId => run.SessionId[..8];
+    public string SessionToolTip => $"{Session}\nSessions-id: {SessionId}";
+    public string Details => string.Join("  ·  ", Start.ToString("ddd d MMM HH:mm", MainWindow.Swedish), Session,
+        "session " + SessionId, Duration, string.Format(MainWindow.Swedish, "{0:N2} $", Cost ?? 0));
+
+    /// <summary>Set from the order shown, so a run of rows from one session reads as a group.</summary>
+    public bool SameSessionAsAbove
+    {
+        get => _sameSessionAsAbove;
+        set
+        {
+            if (_sameSessionAsAbove == value) return;
+            _sameSessionAsAbove = value;
+            PropertyChanged?.Invoke(this, new(nameof(SameSessionAsAbove)));
+        }
+    }
+    private bool _sameSessionAsAbove;
+
+    /// <summary>The price as a share of the largest in the list shown, for the bar behind it.</summary>
+    public double CostShare
+    {
+        get => _costShare;
+        set
+        {
+            if (_costShare == value) return;
+            _costShare = value;
+            PropertyChanged?.Invoke(this, new(nameof(CostShare)));
+        }
+    }
+    private double _costShare;
     public string Label => run.Label;
 
     /// <summary>The whole prompt, read from the log (the database holds no prompt text); the label once the log is gone.</summary>
@@ -434,11 +483,14 @@ public sealed class RunRow(RunSummary run)
     public long CacheRead => run.Tokens.CacheRead;
     public long CacheWrite => run.Tokens.CacheWrite;
     public double? Cost => run.CostUsd;
-    public IReadOnlyList<AgentRow> Agents { get; } = run.Agents.Select(a => new AgentRow(a)).ToList();
+    public IReadOnlyList<AgentRow> Agents { get; } = run.Agents
+        .Select(a => new AgentRow(a, run.Agents.Max(x => x.CostUsd) ?? 0)).ToList();
 }
 
-public sealed class AgentRow(AgentUsage agent)
+public sealed class AgentRow(AgentUsage agent, double maxCost)
 {
+    /// <summary>The price as a share of the costliest agent in the run, for the bar behind it.</summary>
+    public double CostShare => maxCost > 0 ? (agent.CostUsd ?? 0) / maxCost : 0;
     public string Name => agent.Name;
     public string Model => agent.Model;
     public long Responses => agent.Tokens.Responses;

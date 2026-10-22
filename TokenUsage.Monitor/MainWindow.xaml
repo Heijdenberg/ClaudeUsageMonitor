@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:TokenUsage.Monitor"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
-        Title="TokenUsageMonitor" Width="980" Height="660" MinWidth="520" MinHeight="420"
+        Title="TokenUsageMonitor" Width="1060" Height="720" MinWidth="560" MinHeight="460"
         WindowStyle="None" ResizeMode="CanResizeWithGrip" StateChanged="Window_StateChanged"
-        Background="#1E1E1E" Foreground="#E6E6E6" FontFamily="Segoe UI" FontSize="14" Language="sv-SE">
+        Background="{StaticResource Background}" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="14" Language="sv-SE">
     <!-- Keeps dragging, double-click to maximize, Aero Snap and edge resizing without the system title bar. -->
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="32" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
@@ -21,6 +21,7 @@
             <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/>
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Cursor" Value="Arrow"/>
             <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -33,11 +34,11 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#333333"/>
+                    <Setter Property="Background" Value="#33363B"/>
                     <Setter Property="Foreground" Value="#FFFFFF"/>
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#454545"/>
+                    <Setter Property="Background" Value="#45484E"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -53,137 +54,35 @@
             </Style.Triggers>
         </Style>
 
-        <SolidColorBrush x:Key="Muted" Color="#A0A0A0"/>
-        <SolidColorBrush x:Key="Line" Color="#3A3A3A"/>
-        <SolidColorBrush x:Key="Accent" Color="#4C8DD6"/>
-
-        <Style TargetType="local:RingGauge">
-            <Setter Property="Width" Value="140"/>
-            <Setter Property="Height" Value="140"/>
-            <Setter Property="Thickness" Value="14"/>
-            <Setter Property="Foreground" Value="#E6E6E6"/>
-            <Setter Property="Margin" Value="0,10,0,10"/>
-        </Style>
-        <Style x:Key="Caption" TargetType="TextBlock">
+        <!-- Session names are secondary; a run in the same session as the row above fades further. -->
+        <Style x:Key="SessionCell" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource Muted}"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-        <Style x:Key="Centered" TargetType="TextBlock" BasedOn="{StaticResource Caption}">
-            <Setter Property="HorizontalAlignment" Value="Center"/>
-            <Setter Property="TextAlignment" Value="Center"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
-        </Style>
-
-        <Style TargetType="TabItem">
-            <Setter Property="Foreground" Value="{StaticResource Muted}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="Tab" Padding="14,8" BorderThickness="0,0,0,2" BorderBrush="Transparent" Background="Transparent">
-                            <ContentPresenter ContentSource="Header"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Tab" Property="BorderBrush" Value="{StaticResource Accent}"/>
-                                <Setter Property="Foreground" Value="#E6E6E6"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="ContextMenu">
-            <Setter Property="Foreground" Value="#E6E6E6"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ContextMenu">
-                        <Border Background="#2B2B2B" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="4" CornerRadius="4">
-                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style TargetType="MenuItem">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="MenuItem">
-                        <Border x:Name="Item" Background="Transparent" Padding="10,6" CornerRadius="3">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"/>
-                                <TextBlock Grid.Column="1" Text="{TemplateBinding InputGestureText}" Margin="24,0,0,0"
-                                           Foreground="{StaticResource Muted}"/>
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Item" Property="Background" Value="#3A3A3A"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Item" Property="Opacity" Value="0.45"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="DataGrid">
-            <Setter Property="Background" Value="#1E1E1E"/>
-            <Setter Property="Foreground" Value="#E6E6E6"/>
-            <Setter Property="RowBackground" Value="#1E1E1E"/>
-            <Setter Property="AlternatingRowBackground" Value="#232323"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
-            <Setter Property="HorizontalGridLinesBrush" Value="#2A2A2A"/>
-            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
-            <Setter Property="HeadersVisibility" Value="Column"/>
-            <Setter Property="AutoGenerateColumns" Value="False"/>
-            <Setter Property="IsReadOnly" Value="True"/>
-            <Setter Property="SelectionMode" Value="Single"/>
-            <Setter Property="CanUserResizeRows" Value="False"/>
-            <Setter Property="FontSize" Value="13"/>
-        </Style>
-        <Style TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="#262626"/>
-            <Setter Property="Foreground" Value="{StaticResource Muted}"/>
-            <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
-            <Setter Property="BorderThickness" Value="0,0,1,1"/>
-        </Style>
-        <Style TargetType="DataGridCell">
-            <Setter Property="Padding" Value="8,4"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="DataGridCell">
-                        <Border Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}">
-                            <ContentPresenter/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="ToolTip" Value="{Binding SessionToolTip}"/>
             <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#2D4A6B"/>
-                    <Setter Property="Foreground" Value="#FFFFFF"/>
-                </Trigger>
+                <DataTrigger Binding="{Binding SameSessionAsAbove}" Value="True">
+                    <Setter Property="Opacity" Value="0.4"/>
+                </DataTrigger>
             </Style.Triggers>
         </Style>
-        <Style x:Key="Number" TargetType="TextBlock">
-            <Setter Property="TextAlignment" Value="Right"/>
+        <Style x:Key="PromptCell" TargetType="TextBlock">
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
         </Style>
-        <Style TargetType="Button">
-            <Setter Property="Background" Value="#2D2D2D"/>
-            <Setter Property="Foreground" Value="#E6E6E6"/>
-            <Setter Property="BorderBrush" Value="#444"/>
-            <Setter Property="Padding" Value="12,4"/>
+        <Style x:Key="SummaryValue" TargetType="TextBlock" BasedOn="{StaticResource FigureValue}">
+            <Setter Property="FontSize" Value="22"/>
         </Style>
+
+        <!-- The price over a bar as long as its share of the largest price in the list, so costly rows stand out. -->
+        <DataTemplate x:Key="CostBarCell">
+            <Grid>
+                <Border Background="{StaticResource Accent}" Opacity="0.3" CornerRadius="3" Margin="0,-3" RenderTransformOrigin="1,0.5">
+                    <Border.RenderTransform>
+                        <ScaleTransform ScaleX="{Binding CostShare}"/>
+                    </Border.RenderTransform>
+                </Border>
+                <TextBlock Text="{Binding Cost, StringFormat='{}{0:N2} $'}" Style="{StaticResource StrongNumber}" Margin="8,0,4,0"/>
+            </Grid>
+        </DataTemplate>
     </Window.Resources>
 
     <!-- Fallback frame for when Windows doesn't draw a rounded border (Windows 10); code-behind decides. -->
@@ -207,93 +106,125 @@
             </Grid>
 
             <TabControl x:Name="Tabs" Grid.Row="1" Background="Transparent" BorderThickness="0,1,0,0" BorderBrush="{StaticResource Line}"
-                        Padding="0" Margin="12,8,12,12" SelectionChanged="Tabs_SelectionChanged">
+                        Padding="0" Margin="16,4,16,16" SelectionChanged="Tabs_SelectionChanged">
 
                 <TabItem Header="Gränser">
-                    <StackPanel Margin="20" MaxWidth="480" HorizontalAlignment="Center">
-                        <UniformGrid Columns="2">
-                            <StackPanel Margin="0,0,10,0">
-                                <TextBlock Text="Femtimmarsgränsen" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-                                <local:RingGauge x:Name="FiveRing"/>
-                                <TextBlock x:Name="FiveReset" Style="{StaticResource Centered}" Text="Återställs: –"/>
-                                <TextBlock x:Name="FiveSpend" Style="{StaticResource Centered}" Margin="0,6,0,0"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,20,0,0" MaxWidth="1100">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="20"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <local:LimitCard x:Name="FiveCard" Title="Femtimmarsgränsen"/>
+                                <local:LimitCard x:Name="WeekCard" Grid.Column="2" Title="Veckogränsen"/>
+                            </Grid>
+                            <StackPanel x:Name="StatusLine" Orientation="Horizontal" Margin="4,16,4,4" HorizontalAlignment="Left"
+                                        Background="Transparent" ToolTipService.InitialShowDelay="200">
+                                <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="{StaticResource Faint}" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="Status" Style="{StaticResource Caption}" Margin="8,0,0,0" Text="Läser data…"/>
                             </StackPanel>
-                            <StackPanel Margin="10,0,0,0">
-                                <TextBlock Text="Veckogränsen" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-                                <local:RingGauge x:Name="WeekRing"/>
-                                <TextBlock x:Name="WeekReset" Style="{StaticResource Centered}" Text="Återställs: –"/>
-                                <TextBlock x:Name="WeekSpend" Style="{StaticResource Centered}" Margin="0,6,0,0"/>
-                            </StackPanel>
-                        </UniformGrid>
-                        <Separator Margin="0,18,0,10" Background="{StaticResource Line}"/>
-                        <TextBlock x:Name="Status" Style="{StaticResource Caption}" TextWrapping="Wrap" Text="Läser data…"/>
-                    </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
                 </TabItem>
 
                 <TabItem Header="Körningar">
-                    <Grid Margin="0,12,0,0">
+                    <Grid Margin="0,16,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="3*"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="3*" MinHeight="120"/>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="2*"/>
+                            <RowDefinition Height="2*" MinHeight="140"/>
                         </Grid.RowDefinitions>
 
-                        <DockPanel Margin="0,0,0,8">
-                            <ComboBox x:Name="Period" Width="170" SelectedIndex="1" SelectionChanged="Period_SelectionChanged">
+                        <DockPanel>
+                            <ComboBox x:Name="Period" Width="190" SelectedIndex="1" SelectionChanged="Period_SelectionChanged">
                                 <ComboBoxItem Content="Senaste 24 timmarna" Tag="1"/>
                                 <ComboBoxItem Content="Senaste 7 dagarna" Tag="7"/>
                                 <ComboBoxItem Content="Senaste 30 dagarna" Tag="30"/>
                                 <ComboBoxItem Content="Allt" Tag="0"/>
                             </ComboBox>
-                            <ComboBox x:Name="SessionFilter" Width="280" Margin="8,0,0,0" DisplayMemberPath="Text"
+                            <ComboBox x:Name="SessionFilter" Width="300" Margin="8,0,0,0" DisplayMemberPath="Text"
                                       SelectionChanged="SessionFilter_SelectionChanged"/>
                             <Button Content="Uppdatera" Margin="8,0,0,0" Click="Refresh_Click"/>
                             <TextBlock x:Name="RunsSummary" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="12,0,0,0"
-                                       TextTrimming="CharacterEllipsis"/>
+                                       TextAlignment="Right" TextTrimming="CharacterEllipsis"/>
                         </DockPanel>
 
-                        <DataGrid x:Name="Runs" Grid.Row="1" SelectionChanged="Runs_SelectionChanged"
-                                  ContextMenuOpening="Runs_ContextMenuOpening" PreviewKeyDown="Runs_PreviewKeyDown">
-                            <DataGrid.ContextMenu>
-                                <ContextMenu>
-                                    <MenuItem Header="Kopiera rad" InputGestureText="Ctrl+C" Click="CopyRow_Click"/>
-                                    <MenuItem x:Name="CopyCellItem" Click="CopyCell_Click"/>
-                                    <MenuItem x:Name="SessionFilterItem" Click="SessionFilterItem_Click"/>
-                                </ContextMenu>
-                            </DataGrid.ContextMenu>
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Start" Binding="{Binding Start, StringFormat='ddd d MMM HH:mm'}" SortMemberPath="Start"/>
-                                <DataGridTextColumn Header="Session" Binding="{Binding Session}" Width="150"/>
-                                <DataGridTextColumn Header="Id" Binding="{Binding ShortSessionId}" FontFamily="Consolas"/>
-                                <DataGridTextColumn Header="Prompt" Binding="{Binding Label}" Width="*"/>
-                                <DataGridTextColumn Header="Tid" Binding="{Binding Duration}" SortMemberPath="DurationSeconds"/>
-                                <DataGridTextColumn Header="Svar" Binding="{Binding Responses, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                                <DataGridTextColumn Header="Utskrivet" Binding="{Binding Output, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                                <DataGridTextColumn Header="Cacheläsning" Binding="{Binding CacheRead, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                                <DataGridTextColumn Header="Cacheskrivning" Binding="{Binding CacheWrite, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                                <DataGridTextColumn Header="API-pris" Binding="{Binding Cost, StringFormat='{}{0:N2} $'}" ElementStyle="{StaticResource Number}"/>
-                            </DataGrid.Columns>
-                        </DataGrid>
+                        <UniformGrid Grid.Row="1" Columns="3" Margin="-8,16,-8,16">
+                            <ContentControl Style="{StaticResource Card}" Padding="18,14" Margin="8,0">
+                                <StackPanel>
+                                    <TextBlock x:Name="RunCount" Style="{StaticResource SummaryValue}" Text="–"/>
+                                    <TextBlock Style="{StaticResource FigureLabel}" Text="körningar"/>
+                                </StackPanel>
+                            </ContentControl>
+                            <ContentControl Style="{StaticResource Card}" Padding="18,14" Margin="8,0">
+                                <StackPanel>
+                                    <TextBlock x:Name="ResponseCount" Style="{StaticResource SummaryValue}" Text="–"/>
+                                    <TextBlock Style="{StaticResource FigureLabel}" Text="svar"/>
+                                </StackPanel>
+                            </ContentControl>
+                            <ContentControl Style="{StaticResource Card}" Padding="18,14" Margin="8,0">
+                                <StackPanel>
+                                    <TextBlock x:Name="CostTotal" Style="{StaticResource SummaryValue}" Text="–"/>
+                                    <TextBlock Style="{StaticResource FigureLabel}" Text="API-pris"/>
+                                </StackPanel>
+                            </ContentControl>
+                        </UniformGrid>
 
-                        <GridSplitter Grid.Row="2" Height="6" HorizontalAlignment="Stretch" Background="Transparent"/>
-                        <TextBlock x:Name="DetailsTitle" Grid.Row="3" Style="{StaticResource Caption}" Margin="0,4,0,6"
-                                   Text="Välj en körning för att se vad varje agent och modell kostade."/>
+                        <ContentControl Grid.Row="2" Style="{StaticResource Card}" Padding="6,10,6,6">
+                            <DataGrid x:Name="Runs" SelectionChanged="Runs_SelectionChanged" Sorting="Runs_Sorting"
+                                      ContextMenuOpening="Runs_ContextMenuOpening" PreviewKeyDown="Runs_PreviewKeyDown">
+                                <DataGrid.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem x:Name="ShowPromptItem" Header="Visa hela prompten" Click="ShowPrompt_Click"/>
+                                        <MenuItem Header="Kopiera rad" InputGestureText="Ctrl+C" Click="CopyRow_Click"/>
+                                        <MenuItem x:Name="CopyCellItem" Click="CopyCell_Click"/>
+                                        <MenuItem x:Name="SessionFilterItem" Click="SessionFilterItem_Click"/>
+                                    </ContextMenu>
+                                </DataGrid.ContextMenu>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Start" Binding="{Binding Start, StringFormat='ddd d MMM HH:mm'}" SortMemberPath="Start"/>
+                                    <DataGridTextColumn Header="Prompt" Binding="{Binding Label}" Width="*" MinWidth="220" ElementStyle="{StaticResource PromptCell}"/>
+                                    <DataGridTextColumn Header="Session" Binding="{Binding Session}" Width="140" ElementStyle="{StaticResource SessionCell}"/>
+                                    <DataGridTextColumn Header="Tid" Binding="{Binding Duration}" SortMemberPath="DurationSeconds" ElementStyle="{StaticResource MutedNumber}"/>
+                                    <DataGridTextColumn Header="Svar" Binding="{Binding Responses, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
+                                    <DataGridTextColumn Header="Utskrivet" Binding="{Binding Output, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
+                                    <DataGridTextColumn Header="Cacheläsning" Binding="{Binding CacheRead, StringFormat=N0}" ElementStyle="{StaticResource MutedNumber}"/>
+                                    <DataGridTextColumn Header="Cacheskrivning" Binding="{Binding CacheWrite, StringFormat=N0}" ElementStyle="{StaticResource MutedNumber}"/>
+                                    <DataGridTemplateColumn Header="API-pris" SortMemberPath="Cost" Width="130" CellTemplate="{StaticResource CostBarCell}"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </ContentControl>
 
-                        <DataGrid x:Name="Agents" Grid.Row="4">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Agent" Binding="{Binding Name}" Width="*"/>
-                                <DataGridTextColumn Header="Modell" Binding="{Binding Model}"/>
-                                <DataGridTextColumn Header="Svar" Binding="{Binding Responses, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                                <DataGridTextColumn Header="In" Binding="{Binding Input, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                                <DataGridTextColumn Header="Utskrivet" Binding="{Binding Output, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                                <DataGridTextColumn Header="varav tänkande" Binding="{Binding Thinking, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                                <DataGridTextColumn Header="Cacheläsning" Binding="{Binding CacheRead, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                                <DataGridTextColumn Header="Cacheskrivning" Binding="{Binding CacheWrite, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                                <DataGridTextColumn Header="API-pris" Binding="{Binding Cost, StringFormat='{}{0:N2} $'}" ElementStyle="{StaticResource Number}"/>
-                            </DataGrid.Columns>
-                        </DataGrid>
+                        <GridSplitter Grid.Row="3" Height="12" HorizontalAlignment="Stretch" Background="Transparent"/>
+
+                        <!-- The chosen run: its details, then how agents and models split the cost. -->
+                        <ContentControl Grid.Row="4" Style="{StaticResource Card}" Padding="16,14,16,6">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock x:Name="DetailsTitle" Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis"
+                                           Text="Välj en körning för att se vad varje agent och modell kostade."/>
+                                <DataGrid x:Name="Agents" Grid.Row="1" Margin="-10,8,-10,0">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Agent" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource PromptCell}"/>
+                                        <DataGridTextColumn Header="Modell" Binding="{Binding Model}" ElementStyle="{StaticResource Caption}"/>
+                                        <DataGridTextColumn Header="Svar" Binding="{Binding Responses, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
+                                        <DataGridTextColumn Header="In" Binding="{Binding Input, StringFormat=N0}" ElementStyle="{StaticResource MutedNumber}"/>
+                                        <DataGridTextColumn Header="Utskrivet" Binding="{Binding Output, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
+                                        <DataGridTextColumn Header="varav tänkande" Binding="{Binding Thinking, StringFormat=N0}" ElementStyle="{StaticResource MutedNumber}"/>
+                                        <DataGridTextColumn Header="Cacheläsning" Binding="{Binding CacheRead, StringFormat=N0}" ElementStyle="{StaticResource MutedNumber}"/>
+                                        <DataGridTextColumn Header="Cacheskrivning" Binding="{Binding CacheWrite, StringFormat=N0}" ElementStyle="{StaticResource MutedNumber}"/>
+                                        <DataGridTemplateColumn Header="API-pris" SortMemberPath="Cost" Width="130" CellTemplate="{StaticResource CostBarCell}"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </ContentControl>
                     </Grid>
                 </TabItem>
             </TabControl>
