@@ -2,9 +2,58 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:ClaudeUsage.Monitor"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="Claude-användning" Width="980" Height="660" MinWidth="520" MinHeight="420"
+        WindowStyle="None" ResizeMode="CanResizeWithGrip" StateChanged="Window_StateChanged"
         Background="#1E1E1E" Foreground="#E6E6E6" FontFamily="Segoe UI" FontSize="14" Language="sv-SE">
+    <!-- Keeps dragging, double-click to maximize, Aero Snap and edge resizing without the system title bar. -->
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="32" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
+    </shell:WindowChrome.WindowChrome>
+
     <Window.Resources>
+        <SolidColorBrush x:Key="TitleBar" Color="#181818"/>
+        <Style x:Key="CaptionButton" TargetType="Button">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#C8C8C8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#333333"/>
+                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#454545"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="CloseButton" TargetType="Button" BasedOn="{StaticResource CaptionButton}">
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#E81123"/>
+                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#B50F1D"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <SolidColorBrush x:Key="Muted" Color="#A0A0A0"/>
         <SolidColorBrush x:Key="Line" Color="#3A3A3A"/>
         <SolidColorBrush x:Key="Accent" Color="#4C8DD6"/>
@@ -97,87 +146,109 @@
         </Style>
     </Window.Resources>
 
-    <TabControl x:Name="Tabs" Background="Transparent" BorderThickness="0,1,0,0" BorderBrush="{StaticResource Line}"
-                Padding="0" Margin="12,8,12,12" SelectionChanged="Tabs_SelectionChanged">
+    <!-- A thin frame marks the window edge when it isn't maximized; code-behind adjusts it per state. -->
+    <Border x:Name="WindowFrame" BorderBrush="{StaticResource Line}" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="32"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-        <TabItem Header="Gränser">
-            <StackPanel Margin="20" MaxWidth="480" HorizontalAlignment="Center">
-                <UniformGrid Columns="2">
-                    <StackPanel Margin="0,0,10,0">
-                        <TextBlock Text="Femtimmarsgränsen" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-                        <local:RingGauge x:Name="FiveRing"/>
-                        <TextBlock x:Name="FiveReset" Style="{StaticResource Centered}" Text="Återställs: –"/>
-                        <TextBlock x:Name="FiveSpend" Style="{StaticResource Centered}" Margin="0,6,0,0"/>
-                    </StackPanel>
-                    <StackPanel Margin="10,0,0,0">
-                        <TextBlock Text="Veckogränsen" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-                        <local:RingGauge x:Name="WeekRing"/>
-                        <TextBlock x:Name="WeekReset" Style="{StaticResource Centered}" Text="Återställs: –"/>
-                        <TextBlock x:Name="WeekSpend" Style="{StaticResource Centered}" Margin="0,6,0,0"/>
-                    </StackPanel>
-                </UniformGrid>
-                <Separator Margin="0,18,0,10" Background="{StaticResource Line}"/>
-                <TextBlock x:Name="Status" Style="{StaticResource Caption}" TextWrapping="Wrap" Text="Läser data…"/>
-            </StackPanel>
-        </TabItem>
-
-        <TabItem Header="Körningar">
-            <Grid Margin="0,12,0,0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="3*"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="2*"/>
-                </Grid.RowDefinitions>
-
-                <DockPanel Margin="0,0,0,8">
-                    <ComboBox x:Name="Period" Width="170" SelectedIndex="1" SelectionChanged="Period_SelectionChanged">
-                        <ComboBoxItem Content="Senaste 24 timmarna" Tag="1"/>
-                        <ComboBoxItem Content="Senaste 7 dagarna" Tag="7"/>
-                        <ComboBoxItem Content="Senaste 30 dagarna" Tag="30"/>
-                        <ComboBoxItem Content="Allt" Tag="0"/>
-                    </ComboBox>
-                    <ComboBox x:Name="SessionFilter" Width="280" Margin="8,0,0,0" DisplayMemberPath="Text"
-                              SelectionChanged="SessionFilter_SelectionChanged"/>
-                    <Button Content="Uppdatera" Margin="8,0,0,0" Click="Refresh_Click"/>
-                    <TextBlock x:Name="RunsSummary" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="12,0,0,0"
-                               TextTrimming="CharacterEllipsis"/>
-                </DockPanel>
-
-                <DataGrid x:Name="Runs" Grid.Row="1" SelectionChanged="Runs_SelectionChanged">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Start" Binding="{Binding Start, StringFormat='ddd d MMM HH:mm'}" SortMemberPath="Start"/>
-                        <DataGridTextColumn Header="Session" Binding="{Binding Session}" Width="150"/>
-                        <DataGridTextColumn Header="Id" Binding="{Binding ShortSessionId}" FontFamily="Consolas"/>
-                        <DataGridTextColumn Header="Prompt" Binding="{Binding Label}" Width="*"/>
-                        <DataGridTextColumn Header="Tid" Binding="{Binding Duration}" SortMemberPath="DurationSeconds"/>
-                        <DataGridTextColumn Header="Svar" Binding="{Binding Responses, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                        <DataGridTextColumn Header="Utskrivet" Binding="{Binding Output, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                        <DataGridTextColumn Header="Cacheläsning" Binding="{Binding CacheRead, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                        <DataGridTextColumn Header="Cacheskrivning" Binding="{Binding CacheWrite, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                        <DataGridTextColumn Header="API-pris" Binding="{Binding Cost, StringFormat='{}{0:N2} $'}" ElementStyle="{StaticResource Number}"/>
-                    </DataGrid.Columns>
-                </DataGrid>
-
-                <GridSplitter Grid.Row="2" Height="6" HorizontalAlignment="Stretch" Background="Transparent"/>
-                <TextBlock x:Name="DetailsTitle" Grid.Row="3" Style="{StaticResource Caption}" Margin="0,4,0,6"
-                           Text="Välj en körning för att se vad varje agent och modell kostade."/>
-
-                <DataGrid x:Name="Agents" Grid.Row="4">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Agent" Binding="{Binding Name}" Width="*"/>
-                        <DataGridTextColumn Header="Modell" Binding="{Binding Model}"/>
-                        <DataGridTextColumn Header="Svar" Binding="{Binding Responses, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                        <DataGridTextColumn Header="In" Binding="{Binding Input, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                        <DataGridTextColumn Header="Utskrivet" Binding="{Binding Output, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                        <DataGridTextColumn Header="varav tänkande" Binding="{Binding Thinking, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                        <DataGridTextColumn Header="Cacheläsning" Binding="{Binding CacheRead, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                        <DataGridTextColumn Header="Cacheskrivning" Binding="{Binding CacheWrite, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
-                        <DataGridTextColumn Header="API-pris" Binding="{Binding Cost, StringFormat='{}{0:N2} $'}" ElementStyle="{StaticResource Number}"/>
-                    </DataGrid.Columns>
-                </DataGrid>
+            <!-- Title bar: the empty area is the WindowChrome caption, so it drags and double-click maximizes. -->
+            <Grid Background="{StaticResource TitleBar}">
+                <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
+                           Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Style="{StaticResource CaptionButton}" Content="&#xE921;" ToolTip="Minimera" Click="Minimize_Click"/>
+                    <Button x:Name="MaximizeButton" Style="{StaticResource CaptionButton}" Content="&#xE922;" ToolTip="Maximera"
+                            Click="MaximizeRestore_Click"/>
+                    <Button Style="{StaticResource CloseButton}" Content="&#xE8BB;" ToolTip="Stäng" Click="Close_Click"/>
+                </StackPanel>
             </Grid>
-        </TabItem>
-    </TabControl>
+
+            <TabControl x:Name="Tabs" Grid.Row="1" Background="Transparent" BorderThickness="0,1,0,0" BorderBrush="{StaticResource Line}"
+                        Padding="0" Margin="12,8,12,12" SelectionChanged="Tabs_SelectionChanged">
+
+                <TabItem Header="Gränser">
+                    <StackPanel Margin="20" MaxWidth="480" HorizontalAlignment="Center">
+                        <UniformGrid Columns="2">
+                            <StackPanel Margin="0,0,10,0">
+                                <TextBlock Text="Femtimmarsgränsen" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                <local:RingGauge x:Name="FiveRing"/>
+                                <TextBlock x:Name="FiveReset" Style="{StaticResource Centered}" Text="Återställs: –"/>
+                                <TextBlock x:Name="FiveSpend" Style="{StaticResource Centered}" Margin="0,6,0,0"/>
+                            </StackPanel>
+                            <StackPanel Margin="10,0,0,0">
+                                <TextBlock Text="Veckogränsen" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                <local:RingGauge x:Name="WeekRing"/>
+                                <TextBlock x:Name="WeekReset" Style="{StaticResource Centered}" Text="Återställs: –"/>
+                                <TextBlock x:Name="WeekSpend" Style="{StaticResource Centered}" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </UniformGrid>
+                        <Separator Margin="0,18,0,10" Background="{StaticResource Line}"/>
+                        <TextBlock x:Name="Status" Style="{StaticResource Caption}" TextWrapping="Wrap" Text="Läser data…"/>
+                    </StackPanel>
+                </TabItem>
+
+                <TabItem Header="Körningar">
+                    <Grid Margin="0,12,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="3*"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="2*"/>
+                        </Grid.RowDefinitions>
+
+                        <DockPanel Margin="0,0,0,8">
+                            <ComboBox x:Name="Period" Width="170" SelectedIndex="1" SelectionChanged="Period_SelectionChanged">
+                                <ComboBoxItem Content="Senaste 24 timmarna" Tag="1"/>
+                                <ComboBoxItem Content="Senaste 7 dagarna" Tag="7"/>
+                                <ComboBoxItem Content="Senaste 30 dagarna" Tag="30"/>
+                                <ComboBoxItem Content="Allt" Tag="0"/>
+                            </ComboBox>
+                            <ComboBox x:Name="SessionFilter" Width="280" Margin="8,0,0,0" DisplayMemberPath="Text"
+                                      SelectionChanged="SessionFilter_SelectionChanged"/>
+                            <Button Content="Uppdatera" Margin="8,0,0,0" Click="Refresh_Click"/>
+                            <TextBlock x:Name="RunsSummary" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="12,0,0,0"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </DockPanel>
+
+                        <DataGrid x:Name="Runs" Grid.Row="1" SelectionChanged="Runs_SelectionChanged">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Start" Binding="{Binding Start, StringFormat='ddd d MMM HH:mm'}" SortMemberPath="Start"/>
+                                <DataGridTextColumn Header="Session" Binding="{Binding Session}" Width="150"/>
+                                <DataGridTextColumn Header="Id" Binding="{Binding ShortSessionId}" FontFamily="Consolas"/>
+                                <DataGridTextColumn Header="Prompt" Binding="{Binding Label}" Width="*"/>
+                                <DataGridTextColumn Header="Tid" Binding="{Binding Duration}" SortMemberPath="DurationSeconds"/>
+                                <DataGridTextColumn Header="Svar" Binding="{Binding Responses, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
+                                <DataGridTextColumn Header="Utskrivet" Binding="{Binding Output, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
+                                <DataGridTextColumn Header="Cacheläsning" Binding="{Binding CacheRead, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
+                                <DataGridTextColumn Header="Cacheskrivning" Binding="{Binding CacheWrite, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
+                                <DataGridTextColumn Header="API-pris" Binding="{Binding Cost, StringFormat='{}{0:N2} $'}" ElementStyle="{StaticResource Number}"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <GridSplitter Grid.Row="2" Height="6" HorizontalAlignment="Stretch" Background="Transparent"/>
+                        <TextBlock x:Name="DetailsTitle" Grid.Row="3" Style="{StaticResource Caption}" Margin="0,4,0,6"
+                                   Text="Välj en körning för att se vad varje agent och modell kostade."/>
+
+                        <DataGrid x:Name="Agents" Grid.Row="4">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Agent" Binding="{Binding Name}" Width="*"/>
+                                <DataGridTextColumn Header="Modell" Binding="{Binding Model}"/>
+                                <DataGridTextColumn Header="Svar" Binding="{Binding Responses, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
+                                <DataGridTextColumn Header="In" Binding="{Binding Input, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
+                                <DataGridTextColumn Header="Utskrivet" Binding="{Binding Output, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
+                                <DataGridTextColumn Header="varav tänkande" Binding="{Binding Thinking, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
+                                <DataGridTextColumn Header="Cacheläsning" Binding="{Binding CacheRead, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
+                                <DataGridTextColumn Header="Cacheskrivning" Binding="{Binding CacheWrite, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
+                                <DataGridTextColumn Header="API-pris" Binding="{Binding Cost, StringFormat='{}{0:N2} $'}" ElementStyle="{StaticResource Number}"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </Border>
 </Window>

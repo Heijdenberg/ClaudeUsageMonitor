@@ -1,7 +1,9 @@
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Data.Sqlite;
@@ -30,6 +32,71 @@ public partial class MainWindow : Window
         _timer.Tick += (_, _) => Refresh();
         _timer.Start();
         Refresh();
+    }
+
+    // ---- Title bar ----
+
+    private void Minimize_Click(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+
+    private void MaximizeRestore_Click(object sender, RoutedEventArgs e)
+    {
+        if (WindowState == WindowState.Maximized) SystemCommands.RestoreWindow(this);
+        else SystemCommands.MaximizeWindow(this);
+    }
+
+    private void Close_Click(object sender, RoutedEventArgs e) => SystemCommands.CloseWindow(this);
+
+    /// <summary>Also covers maximizing by double-click on the title bar, Aero Snap and Win+Up.</summary>
+    private void Window_StateChanged(object? sender, EventArgs e)
+    {
+        var maximized = WindowState == WindowState.Maximized;
+        MaximizeButton.Content = maximized ? "\uE923" : "\uE922";   // Segoe Fluent Icons: restore / maximize
+        MaximizeButton.ToolTip = maximized ? "Återställ" : "Maximera";
+        WindowFrame.BorderThickness = new Thickness(maximized ? 0 : 1);
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        HwndSource.FromHwnd(new WindowInteropHelper(this).Handle).AddHook(WndProc);
+    }
+
+    /// <summary>
+    /// Without the system frame, Windows would maximize the window over the whole monitor, covering the
+    /// taskbar and pushing the edges off-screen. Limit the maximized size to the monitor's work area instead.
+    /// </summary>
+    private static IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        const int WM_GETMINMAXINFO = 0x0024;
+        if (msg != WM_GETMINMAXINFO) return IntPtr.Zero;
+
+        var monitor = Native.MonitorFromWindow(hwnd, Native.MONITOR_DEFAULTTONEAREST);
+        var info = new Native.MonitorInfo { Size = Marshal.SizeOf<Native.MonitorInfo>() };
+        if (monitor == IntPtr.Zero || !Native.GetMonitorInfo(monitor, ref info)) return IntPtr.Zero;
+
+        // Positions are relative to the monitor; WPF still applies MinWidth/MinHeight afterwards.
+        var mmi = Marshal.PtrToStructure<Native.MinMaxInfo>(lParam);
+        mmi.MaxPosition = new Native.Point { X = info.Work.Left - info.Monitor.Left, Y = info.Work.Top - info.Monitor.Top };
+        mmi.MaxSize = new Native.Point { X = info.Work.Right - info.Work.Left, Y = info.Work.Bottom - info.Work.Top };
+        Marshal.StructureToPtr(mmi, lParam, false);
+        return IntPtr.Zero;
+    }
+
+    private static class Native
+    {
+        public const int MONITOR_DEFAULTTONEAREST = 2;
+
+        [StructLayout(LayoutKind.Sequential)] public struct Point { public int X, Y; }
+        [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MinMaxInfo { public Point Reserved, MaxSize, MaxPosition, MinTrackSize, MaxTrackSize; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MonitorInfo { public int Size; public Rect Monitor, Work; public uint Flags; }
+
+        [DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr hwnd, int flags);
+        [DllImport("user32.dll")] public static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
     }
 
     private bool RunsVisible => Tabs.SelectedIndex == 1;
