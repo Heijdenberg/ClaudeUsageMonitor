@@ -1,0 +1,185 @@
+using System.Data;
+using Microsoft.Data.Sqlite;
+
+namespace UsageCore;
+
+/// <summary>
+/// usage.db: limit percentages over time and token usage per response from Claude Code's session logs.
+/// UsageStatusLine writes it (many short-lived processes at once); UsageMonitor only reads it.
+/// Times are stored as Unix milliseconds, reset times as Unix seconds.
+/// </summary>
+public sealed class UsageDatabase : IDisposable
+{
+    private const int SchemaVersion = 1;
+
+    private const string Schema = """
+        CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+        -- Current state per window: the latest merged values from all sessions.
+        CREATE TABLE IF NOT EXISTS limits (
+            window TEXT PRIMARY KEY, used_percentage REAL, resets_at INTEGER,
+            checked_at INTEGER NOT NULL, changed_at INTEGER);
+        -- One row each time a window's percentage or reset time changes.
+        CREATE TABLE IF NOT EXISTS limit_history (
+            id INTEGER PRIMARY KEY, at INTEGER NOT NULL, window TEXT NOT NULL,
+            used_percentage REAL NOT NULL, resets_at INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS sessions (session_id TEXT PRIMARY KEY, project TEXT, title TEXT);
+        -- Each message you send gets a prompt id; everything it triggers, subagents included, carries it.
+        CREATE TABLE IF NOT EXISTS prompts (
+            prompt_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, at INTEGER NOT NULL,
+            origin TEXT NOT NULL, label TEXT);
+        CREATE TABLE IF NOT EXISTS agents (
+            agent_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, agent_type TEXT,
+            description TEXT, model TEXT, tool_use_id TEXT);
+        CREATE TABLE IF NOT EXISTS responses (
+            message_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, prompt_id TEXT, agent_id TEXT,
+            at INTEGER NOT NULL, model TEXT NOT NULL, speed TEXT,
+            input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL, thinking_tokens INTEGER NOT NULL,
+            cache_read_tokens INTEGER NOT NULL, cache_write_5m_tokens INTEGER NOT NULL,
+            cache_write_1h_tokens INTEGER NOT NULL, web_search_requests INTEGER NOT NULL);
+        CREATE INDEX IF NOT EXISTS ix_responses_at ON responses (at);
+        -- How far each session log has been read, and the prompt in effect at that point.
+        CREATE TABLE IF NOT EXISTS log_files (path TEXT PRIMARY KEY, offset INTEGER NOT NULL, prompt_id TEXT);
+        """;
+
+    static UsageDatabase() => SQLitePCL.Batteries_V2.Init();
+
+    internal SqliteConnection Connection { get; }
+
+    private UsageDatabase(SqliteConnection connection) => Connection = connection;
+
+    public static UsageDatabase OpenForWriting(string path)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        var db = Open($"Data Source={path};Pooling=False");
+        db.Execute("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;");
+        if (db.ScalarLong("PRAGMA user_version") < SchemaVersion)
+        {
+            using var tx = db.Begin();
+            db.Execute(Schema, tx);
+            db.Execute($"PRAGMA user_version={SchemaVersion}", tx);
+            tx.Commit();
+        }
+        return db;
+    }
+
+    /// <summary>Opens an existing database read-only. Throws if it doesn't exist yet.</summary>
+    public static UsageDatabase OpenReadOnly(string path)
+    {
+        if (!File.Exists(path)) throw new FileNotFoundException("usage.db finns inte än.", path);
+        return Open($"Data Source={path};Mode=ReadOnly;Pooling=False");
+    }
+
+    private static UsageDatabase Open(string connectionString)
+    {
+        var conn = new SqliteConnection(connectionString);
+        conn.Open();
+        var db = new UsageDatabase(conn);
+        db.Execute("PRAGMA busy_timeout=5000;");
+        return db;
+    }
+
+    public void Dispose() => Connection.Dispose();
+
+    /// <summary>BEGIN IMMEDIATE: take the write lock up front, so concurrent writers wait instead of failing.</summary>
+    internal SqliteTransaction Begin() => Connection.BeginTransaction(IsolationLevel.Serializable, deferred: false);
+
+    internal SqliteCommand Command(string sql, SqliteTransaction? tx = null)
+    {
+        var cmd = Connection.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Transaction = tx;
+        return cmd;
+    }
+
+    internal void Execute(string sql, SqliteTransaction? tx = null)
+    {
+        using var cmd = Command(sql, tx);
+        cmd.ExecuteNonQuery();
+    }
+
+    private long ScalarLong(string sql)
+    {
+        using var cmd = Command(sql);
+        return Convert.ToInt64(cmd.ExecuteScalar() ?? 0L);
+    }
+
+    internal string? GetMeta(string key, SqliteTransaction? tx = null)
+    {
+        using var cmd = Command("SELECT value FROM meta WHERE key = $k", tx);
+        cmd.Parameters.AddWithValue("$k", key);
+        return cmd.ExecuteScalar() as string;
+    }
+
+    internal void SetMeta(string key, string value, SqliteTransaction? tx = null)
+    {
+        using var cmd = Command("INSERT INTO meta (key, value) VALUES ($k, $v) ON CONFLICT (key) DO UPDATE SET value = excluded.value", tx);
+        cmd.Parameters.AddWithValue("$k", key);
+        cmd.Parameters.AddWithValue("$v", value);
+        cmd.ExecuteNonQuery();
+    }
+
+    // ---- Limits ----
+
+    public const string FiveHour = "five_hour";
+    public const string SevenDay = "seven_day";
+
+    /// <summary>Merges a session's reported windows into the stored ones and records changes.</summary>
+    public void UpdateLimits(StatusInput input, DateTimeOffset now)
+    {
+        using var tx = Begin();
+        UpdateLimit(FiveHour, input.FiveHour, now, tx);
+        UpdateLimit(SevenDay, input.SevenDay, now, tx);
+        tx.Commit();
+    }
+
+    private void UpdateLimit(string window, LimitWindow incoming, DateTimeOffset now, SqliteTransaction tx)
+    {
+        var stored = ReadLimit(window, tx);
+        var merged = LimitWindow.Merge(incoming, stored?.Window, now);
+        var changed = stored is null || stored.Window.UsedPercentage != merged.UsedPercentage
+            || ToSeconds(stored.Window.ResetsAt) != ToSeconds(merged.ResetsAt);
+        var nowMs = now.ToUnixTimeMilliseconds();
+
+        using (var cmd = Command("""
+            INSERT INTO limits (window, used_percentage, resets_at, checked_at, changed_at)
+            VALUES ($w, $p, $r, $now, $changed)
+            ON CONFLICT (window) DO UPDATE SET used_percentage = $p, resets_at = $r, checked_at = $now, changed_at = $changed
+            """, tx))
+        {
+            cmd.Parameters.AddWithValue("$w", window);
+            cmd.Parameters.AddWithValue("$p", (object?)merged.UsedPercentage ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$r", (object?)ToSeconds(merged.ResetsAt) ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$now", nowMs);
+            var changedAt = changed ? nowMs : stored?.ChangedAt?.ToUnixTimeMilliseconds();
+            cmd.Parameters.AddWithValue("$changed", (object?)changedAt ?? DBNull.Value);
+            cmd.ExecuteNonQuery();
+        }
+
+        if (changed && merged is { UsedPercentage: double pct, ResetsAt: DateTimeOffset reset })
+        {
+            using var cmd = Command("INSERT INTO limit_history (at, window, used_percentage, resets_at) VALUES ($at, $w, $p, $r)", tx);
+            cmd.Parameters.AddWithValue("$at", nowMs);
+            cmd.Parameters.AddWithValue("$w", window);
+            cmd.Parameters.AddWithValue("$p", pct);
+            cmd.Parameters.AddWithValue("$r", reset.ToUnixTimeSeconds());
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    public StoredLimit? ReadLimit(string window, SqliteTransaction? tx = null)
+    {
+        using var cmd = Command("SELECT used_percentage, resets_at, checked_at, changed_at FROM limits WHERE window = $w", tx);
+        cmd.Parameters.AddWithValue("$w", window);
+        using var r = cmd.ExecuteReader();
+        if (!r.Read()) return null;
+        return new StoredLimit(
+            new LimitWindow(r.IsDBNull(0) ? null : r.GetDouble(0), r.IsDBNull(1) ? null : DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(1))),
+            DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(2)),
+            r.IsDBNull(3) ? null : DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(3)));
+    }
+
+    private static long? ToSeconds(DateTimeOffset? d) => d?.ToUnixTimeSeconds();
+}
+
+/// <summary>A window as stored: when a session last reported it, and when the values last changed.</summary>
+public sealed record StoredLimit(LimitWindow Window, DateTimeOffset CheckedAt, DateTimeOffset? ChangedAt);

@@ -1,179 +1,99 @@
 # UsageMonitor
 
-En liten WPF-app som visar Claude-förbrukningen för femtimmarsgränsen och veckogränsen.
+Visar hur mycket av Claudes femtimmarsgräns och veckogräns som är förbrukat, och vad varje körning av dina agentflöden kostade i tokens.
 
-Appen läser `C:\temp\usage.json` var 5:e sekund. Filen skrivs av Claude Codes statusradsskript (`%USERPROFILE%\.claude\statusline.ps1`) med `refreshInterval: 5`. Se [Sätta upp statusraden](#sätta-upp-statusraden) för hur det skapas.
+| Projekt | Vad det gör |
+|---|---|
+| `UsageStatusLine` | Claude Codes statusradskommando. Skriver ut statusraden, sparar gränserna och läser in tokenförbrukning från Claude Codes sessionsloggar till `C:\temp\usage.db`. Startar, gör sitt på cirka 30 ms och avslutas. |
+| `UsageMonitor` | WPF-app som läser databasen var 5:e sekund. **Gränser** visar gränserna som ringar, **Körningar** jämför körningar uppdelat per agent och modell. Den skriver ingenting. |
+| `UsageCore` | Delad kod: databas, inläsning av loggar, sammanslagning, priser. |
+| `UsageCore.Tests` | Enhetstester. |
 
-## Kör
+## Vad som sparas
 
-```powershell
-dotnet run
-```
+- **Gränser.** Claude Code skickar `rate_limits.five_hour` och `rate_limits.seven_day` till statusraden. Flera sessioner rapporterar samtidigt, och en session som står still fortsätter rapportera gamla värden. Därför slås värdena ihop: inom ett fönster kan procenten bara öka, och en senare återställningstid betyder ett nytt fönster. Varje ändring sparas i `limit_history`.
+- **Tokens per svar**, från `%USERPROFILE%\.claude\projects\**\*.jsonl`: inmatning, utskrivet (varav tänkande), cacheläsning, cacheskrivning (5 min och 1 h), webbsökningar och modell. Ett svar som loggas på flera rader räknas en gång.
+- **Körningar.** Varje meddelande du skickar har ett `promptId`, och allt det sätter igång bär samma id: underagenter, svar via `AskUserQuestion` och verktygssvar. En körning är ett meddelande plus eventuella notiser från bakgrundsagenter som följer, fram till ditt nästa meddelande. Underagenternas namn kommer från deras `.meta.json` (agenttyp och beskrivning), och sessionsnamn från `/rename`.
+- **Etiketter för prompter:** första raden i varje meddelande du skickar, högst 120 tecken, så att körningar går att skilja åt. Inget annat ur konversationerna sparas.
 
-Kräver .NET 8 SDK och Windows.
+Statusraden läser sin egen sessions logg vid varje körning och kontrollerar alla loggar högst en gång i minuten. Därför kommer även headless-körningar med `claude -p` med, så länge någon interaktiv session är öppen.
 
-## Filformat
+`usage.json` skrivs fortfarande också, i samma format som tidigare.
 
-```json
-{
-    "timestamp":  "2026-10-05T21:01:33.3969092+02:00",
-    "five_hour":  { "used_percentage": 2, "resets_at": "2026-10-06T01:30:00.0000000+02:00" },
-    "seven_day":  { "used_percentage": 21, "resets_at": "2026-10-07T23:00:00.0000000+02:00" }
-}
-```
+**API-pris** är vad tokens skulle kosta på Anthropics API, enligt listpriserna i `UsageCore/Pricing.cs`. Det är ett sätt att väga tokentyper och modeller mot varandra, inte vad prenumerationen kostar. Användning på claude.ai eller i skrivbordsappens chatt finns inte i loggarna.
 
-Värden som saknas är `null` och visas som "inväntar data". Är filen äldre än 30 sekunder visar appen en varning om att den inte uppdateras.
+## Bygga och installera
 
-## Sätta upp statusraden
-
-Klistra in prompten nedan i Claude Code på en Windows-dator. Den skapar statusradsskriptet och inställningen som skriver `C:\temp\usage.json`.
-
-````markdown
-Sätt upp min Claude Code-statusrad på Windows så att den visar förbrukning för femtimmarsgränsen och veckogränsen och samtidigt sparar värdena till `C:\temp\usage.json`. Gör exakt så här:
-
-## 1. Skapa skriptet
-
-Skapa filen `%USERPROFILE%\.claude\statusline.ps1` med exakt detta innehåll:
+Kräver Windows, .NET 8 SDK och, för Native AOT-bygget, Visual Studios arbetsbelastning "Desktop development with C++".
 
 ```powershell
-$raw = [Console]::In.ReadToEnd()
-try { $d = $raw | ConvertFrom-Json } catch { $d = $null }
+# AOT-kompilatorn i .NET 8 letar efter vswhere.exe i PATH.
+$env:PATH = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer;$env:PATH"
+dotnet publish UsageStatusLine -c Release -r win-x64 -o "$env:USERPROFILE\.claude\usage-statusline"
 
-function Format-Window($label, $w) {
-    if ($null -eq $w -or $null -eq $w.used_percentage) { return "${label}: inväntar data" }
-    $pct = [math]::Round([double]$w.used_percentage)
-    $out = "${label}: ${pct}%"
-    if ($null -ne $w.resets_at) {
-        $reset = [DateTimeOffset]::FromUnixTimeSeconds([int64]$w.resets_at)
-        $span = $reset - [DateTimeOffset]::UtcNow
-        if ($span.TotalSeconds -lt 0) { $span = [TimeSpan]::Zero }
-        if ($span.TotalDays -ge 1) {
-            $t = '{0}d {1}h' -f [int][math]::Floor($span.TotalDays), $span.Hours
-        } elseif ($span.TotalHours -ge 1) {
-            $t = '{0}h {1}m' -f [int][math]::Floor($span.TotalHours), $span.Minutes
-        } else {
-            $t = '{0}m' -f [int][math]::Ceiling($span.TotalMinutes)
-        }
-        $out += " (återställs om $t)"
-    } else {
-        $out += " (återställning: inväntar data)"
-    }
-    return $out
-}
+# Läs in befintliga sessionsloggar en gång (tar några sekunder).
+& "$env:USERPROFILE\.claude\usage-statusline\UsageStatusLine.exe" --import-all
 
-$rl = if ($d) { $d.rate_limits } else { $null }
-$five = Format-Window '5h' $(if ($rl) { $rl.five_hour })
-$week = Format-Window '7d' $(if ($rl) { $rl.seven_day })
-function Get-UsageEntry($w) {
-    $pct = $null; $reset = $null
-    if ($null -ne $w) {
-        if ($null -ne $w.used_percentage) { $pct = [double]$w.used_percentage }
-        if ($null -ne $w.resets_at) {
-            $reset = [DateTimeOffset]::FromUnixTimeSeconds([int64]$w.resets_at).ToLocalTime().ToString('o')
-        }
-    }
-    return [ordered]@{ used_percentage = $pct; resets_at = $reset }
-}
-
-function ConvertTo-Reset($v) {
-    if ($null -eq $v) { return $null }
-    if ($v -is [DateTime]) { return [DateTimeOffset]$v }
-    try { return [DateTimeOffset]::Parse([string]$v, [Globalization.CultureInfo]::InvariantCulture) } catch { return $null }
-}
-
-# Several Claude Code sessions write the same file, each with its own last-received values.
-# Never let an idle session's older numbers overwrite newer ones.
-function Merge-UsageEntry($new, $old) {
-    $now = [DateTimeOffset]::Now
-    $newReset = ConvertTo-Reset $new.resets_at
-    $oldReset = if ($old) { ConvertTo-Reset $old.resets_at } else { $null }
-    $oldValid = $null -ne $old -and $null -ne $old.used_percentage -and $null -ne $oldReset -and $oldReset -gt $now
-    if (-not $oldValid) { return $new }
-    if ($null -eq $new.used_percentage -or $null -eq $newReset) {
-        return [ordered]@{ used_percentage = [double]$old.used_percentage; resets_at = $oldReset.ToString('o') }
-    }
-    $diff = ($newReset - $oldReset).TotalSeconds
-    if ($diff -gt 60) { return $new }   # new window started
-    if ($diff -lt -60) { return [ordered]@{ used_percentage = [double]$old.used_percentage; resets_at = $oldReset.ToString('o') } }
-    # Same window: usage only grows, so the higher value is the fresher one.
-    if ([double]$old.used_percentage -gt $new.used_percentage) { $new.used_percentage = [double]$old.used_percentage }
-    return $new
-}
-
-try {
-    $dir = if ($env:USAGE_DIR) { $env:USAGE_DIR } else { 'C:\temp' }   # USAGE_DIR is for testing only
-    if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-    $path = Join-Path $dir 'usage.json'
-    $old = $null
-    try {
-        # Share delete/write so another session can replace the file while we read it.
-        $fs = New-Object IO.FileStream($path, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
-        try { $old = (New-Object IO.StreamReader($fs)).ReadToEnd() | ConvertFrom-Json } finally { $fs.Dispose() }
-    } catch { }
-    $usage = [ordered]@{
-        timestamp = [DateTimeOffset]::Now.ToString('o')
-        five_hour = Merge-UsageEntry (Get-UsageEntry $(if ($rl) { $rl.five_hour })) $(if ($old) { $old.five_hour })
-        seven_day = Merge-UsageEntry (Get-UsageEntry $(if ($rl) { $rl.seven_day })) $(if ($old) { $old.seven_day })
-    }
-    $tmp = "$path.$PID.tmp"
-    [IO.File]::WriteAllText($tmp, ($usage | ConvertTo-Json -Depth 3), (New-Object Text.UTF8Encoding $false))
-    Move-Item -LiteralPath $tmp -Destination $path -Force
-} catch {
-    if ($tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
-}
-
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-Write-Output "$five | $week"
+# Starta appen.
+dotnet run --project UsageMonitor
 ```
 
-**Viktigt:** spara skriptet som **UTF-8 med BOM**. Windows PowerShell 5.1 läser annars filen med fel teckenkodning, och "å"/"ä" blir skräptecken. Om ditt skrivverktyg sparar utan BOM, spara om filen efteråt:
+Utan C++-arbetsbelastningen: publicera med `-p:PublishAot=false` i stället. Då krävs .NET 8-runtime, och programmet startar långsammare.
 
-```powershell
-$p = "$env:USERPROFILE\.claude\statusline.ps1"
-$t = [IO.File]::ReadAllText($p, [Text.Encoding]::UTF8)
-[IO.File]::WriteAllText($p, $t, (New-Object Text.UTF8Encoding $true))
-```
-
-## 2. Uppdatera inställningarna
-
-I `%USERPROFILE%\.claude\settings.json`: lägg till eller ersätt bara nyckeln `statusLine` med följande, och **behåll alla andra inställningar som de är**. Använd den faktiska användarmappen och snedstreck framåt i sökvägen.
+Peka sedan Claude Codes statusrad på exe-filen i `%USERPROFILE%\.claude\settings.json`. Ändra bara nyckeln `statusLine` och behåll alla andra inställningar:
 
 ```json
 "statusLine": {
   "type": "command",
-  "command": "powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/<ANVÄNDARNAMN>/.claude/statusline.ps1",
+  "command": "C:/Users/<ANVÄNDARNAMN>/.claude/usage-statusline/UsageStatusLine.exe",
   "refreshInterval": 5
 }
 ```
 
-## 3. Testa
+För att uppdatera exe-filen senare publicerar du igen. Om en session råkar köra den just då misslyckas kopieringen, och då är det bara att köra igen.
 
-Testa mot en separat testmapp, **inte** mot `C:\temp`. Skriptet behåller det högsta värdet inom samma tidsfönster, så påhittade värden i den riktiga filen kan bli kvar tills fönstret återställs.
+## Testa
 
 ```powershell
-$p = "$env:USERPROFILE\.claude\statusline.ps1"
+dotnet test UsageCore.Tests
+```
+
+För att prova exe-filen utan att röra riktig data: peka `USAGE_DIR` på en testmapp, och `CLAUDE_CONFIG_DIR` på en tom mapp om loggarna ska hoppas över.
+
+```powershell
 $env:USAGE_DIR = Join-Path $env:TEMP 'usage-test'
 $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-$j = '{"rate_limits":{"five_hour":{"used_percentage":42,"resets_at":' + ($now+8100) + '},"seven_day":{"used_percentage":10,"resets_at":' + ($now+273600) + '}}}'
-$j | powershell -NoProfile -ExecutionPolicy Bypass -File $p
-($j -replace '"used_percentage":42','"used_percentage":30') | powershell -NoProfile -ExecutionPolicy Bypass -File $p
-'{}' | powershell -NoProfile -ExecutionPolicy Bypass -File $p
-Get-Content "$env:USAGE_DIR\usage.json" -Raw
+'{"rate_limits":{"five_hour":{"used_percentage":42,"resets_at":' + ($now+8100) + '}}}' | & "$env:USERPROFILE\.claude\usage-statusline\UsageStatusLine.exe"
+# 5h: 42% (återställs om 2h 14m) | 7d: inväntar data
 Remove-Item $env:USAGE_DIR -Recurse -Force; Remove-Item Env:USAGE_DIR
 ```
 
-Förväntat resultat:
-- Första raden: `5h: 42% (återställs om 2h 14m) | 7d: 10% (återställs om 3d 3h)` med korrekta "å" och "ä".
-- Andra raden: `5h: 30% ...`. Statusraden visar sessionens egna värden.
-- Tredje raden: `5h: inväntar data | 7d: inväntar data`.
-- Filen innehåller ändå `42` och `10`. Det lägre värdet och den tomma körningen skrev inte över de högre värdena.
+Om något går fel när data sparas skrivs statusraden ändå ut, och det senaste felet hamnar i `C:\temp\usage-statusline-error.txt`.
 
-Visa mig utdata och filens innehåll.
+## Filer
+
+- `C:\temp\usage.db`: SQLite (WAL). Tabellerna `limits`, `limit_history`, `responses`, `prompts`, `agents`, `sessions` och `log_files` (hur långt varje logg är inläst).
+- `C:\temp\usage.json`: tidsstämpel, procent och återställningstid för båda fönstren, `null` när värden saknas.
+
+```json
+{
+  "timestamp": "2026-10-22T11:37:33.1772476+02:00",
+  "five_hour": { "used_percentage": 17, "resets_at": "2026-10-22T15:30:00.0000000+02:00" },
+  "seven_day": { "used_percentage": 2, "resets_at": "2026-10-28T22:00:00.0000000+01:00" }
+}
+```
+
+## Utan .NET: PowerShell-skriptet
+
+`scripts/statusline.ps1` är den tidigare versionen. Den visar statusraden och skriver `usage.json`, men inte databasen. Kopiera den till `%USERPROFILE%\.claude\statusline.ps1` och behåll den sparad som UTF-8 med BOM, annars blir "å" och "ä" skräptecken i Windows PowerShell 5.1. Använd det här kommandot:
+
+```json
+"command": "powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/<ANVÄNDARNAMN>/.claude/statusline.ps1"
+```
+
+Skriptet startar PowerShell vid varje körning, cirka 0,5 s per gång.
 
 ## Bra att veta
 
 - `rate_limits` finns bara för Pro- och Max-prenumeranter, och först efter sessionens första svar från API:et.
-- Filen skrivs om var 5:e sekund, men siffrorna uppdateras bara när Claude Code (huvudsessionen eller en underagent) får ett svar från API:et. Användning på claude.ai syns först vid nästa anrop från Claude Code.
-- Alla Claude Code-sessioner på datorn skriver till samma fil. Skriptet behåller alltid de färskaste värdena, så sessioner som står still skriver inte över nyare siffror.
-- Filen innehåller bara tidsstämpel, procent och återställningstid. Inga andra sessionsuppgifter sparas.
-````
+- Procenten ändras bara när Claude Code får ett svar från API:et. Ett svar räknas när det är klart, inte medan det skrivs.
