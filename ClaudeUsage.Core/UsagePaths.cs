@@ -2,7 +2,7 @@ namespace ClaudeUsage.Core;
 
 public static class UsagePaths
 {
-    /// <summary>Set to a test folder to keep both the database and usage.json away from the real ones.</summary>
+    /// <summary>Set to a test folder to keep the database away from the real one.</summary>
     private static string? TestDir =>
         Environment.GetEnvironmentVariable("CLAUDE_USAGE_DIR") is { Length: > 0 } dir ? dir : null;
 
@@ -15,9 +15,6 @@ public static class UsagePaths
 
     public static string DatabasePath => Path.Combine(DataDir, "claude-usage.db");
     public static string ErrorLogPath => Path.Combine(DataDir, "claude-usage-error.txt");
-
-    /// <summary>Only percentages and reset times; kept in C:\temp where other tools already read it.</summary>
-    public static string JsonPath => Path.Combine(TestDir ?? @"C:\temp", "usage.json");
 
     /// <summary>Claude Code's session logs: %USERPROFILE%\.claude\projects, or under CLAUDE_CONFIG_DIR when set.</summary>
     public static string ClaudeProjectsDir => Path.Combine(

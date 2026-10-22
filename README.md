@@ -18,8 +18,6 @@ Visar hur mycket av Claudes femtimmarsgräns och veckogräns som är förbrukat,
 
 Statusraden läser sin egen sessions logg vid varje körning och kontrollerar alla loggar högst en gång i minuten. Därför kommer även headless-körningar med `claude -p` med, så länge någon interaktiv session är öppen.
 
-`usage.json` skrivs fortfarande också, i samma format som tidigare.
-
 **API-pris** är vad tokens skulle kosta på Anthropics API, enligt listpriserna i `ClaudeUsage.Core/Pricing.cs`. Det är ett sätt att väga tokentyper och modeller mot varandra, inte vad prenumerationen kostar. Användning på claude.ai eller i skrivbordsappens chatt finns inte i loggarna.
 
 ## Bygga och installera
@@ -58,7 +56,7 @@ För att uppdatera exe-filen senare publicerar du igen. Om en session råkar kö
 dotnet test ClaudeUsage.Core.Tests
 ```
 
-För att prova exe-filen utan att röra riktig data: peka `CLAUDE_USAGE_DIR` på en testmapp (både databasen och `usage.json` hamnar där), och `CLAUDE_CONFIG_DIR` på en tom mapp om loggarna ska hoppas över.
+För att prova exe-filen utan att röra riktig data: peka `CLAUDE_USAGE_DIR` på en testmapp, och `CLAUDE_CONFIG_DIR` på en tom mapp om loggarna ska hoppas över.
 
 ```powershell
 $env:CLAUDE_USAGE_DIR = Join-Path $env:TEMP 'usage-test'
@@ -70,18 +68,11 @@ Remove-Item $env:CLAUDE_USAGE_DIR -Recurse -Force; Remove-Item Env:CLAUDE_USAGE_
 
 Om något går fel när data sparas skrivs statusraden ändå ut, och det senaste felet hamnar i `%LOCALAPPDATA%\ClaudeUsage\claude-usage-error.txt`.
 
-## Filer
+## Databasen
 
-- `%LOCALAPPDATA%\ClaudeUsage\claude-usage.db`: SQLite (WAL). Ligger i din egen profil eftersom den innehåller etiketter från dina meddelanden, och i Local (inte Roaming) eftersom SQLite-filer inte tål att synkas. Tabellerna `limits`, `limit_history`, `responses`, `prompts`, `agents`, `sessions` och `log_files` (hur långt varje logg är inläst).
-- `C:\temp\usage.json`: tidsstämpel, procent och återställningstid för båda fönstren, `null` när värden saknas.
+`%LOCALAPPDATA%\ClaudeUsage\claude-usage.db`, SQLite i WAL-läge. Den ligger i din egen profil eftersom den innehåller etiketter från dina meddelanden, och i Local (inte Roaming) eftersom SQLite-filer inte tål att synkas.
 
-```json
-{
-  "timestamp": "2026-10-22T11:37:33.1772476+02:00",
-  "five_hour": { "used_percentage": 17, "resets_at": "2026-10-22T15:30:00.0000000+02:00" },
-  "seven_day": { "used_percentage": 2, "resets_at": "2026-10-28T22:00:00.0000000+01:00" }
-}
-```
+Tabeller: `limits` (aktuella värden per fönster, med när de senast rapporterades och ändrades), `limit_history`, `responses`, `prompts`, `agents`, `sessions` och `log_files` (hur långt varje logg är inläst).
 
 ## Utan .NET: PowerShell-skriptet
 

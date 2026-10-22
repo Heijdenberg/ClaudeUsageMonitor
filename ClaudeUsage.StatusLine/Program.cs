@@ -25,10 +25,6 @@ using (var stdout = Console.OpenStandardOutput())
 }
 
 // Recording must never break the status line itself; keep only the last error for troubleshooting.
-var errors = new List<string>();
-try { UsageJsonFile.Update(UsagePaths.JsonPath, input, now); }
-catch (Exception ex) { errors.Add($"usage.json: {ex}"); }
-
 try
 {
     using var db = UsageDatabase.OpenForWriting(UsagePaths.DatabasePath);
@@ -40,10 +36,8 @@ try
     // Other sessions, including headless `claude -p` runs that have no status line of their own.
     importer.ImportAllIfDue(UsagePaths.ClaudeProjectsDir, TimeSpan.FromSeconds(60), now, maxBytesPerRun);
 }
-catch (Exception ex) { errors.Add($"claude-usage.db: {ex}"); }
-
-if (errors.Count > 0)
+catch (Exception ex)
 {
-    try { File.WriteAllText(UsagePaths.ErrorLogPath, $"{now:o}{Environment.NewLine}{string.Join(Environment.NewLine, errors)}"); }
+    try { File.WriteAllText(UsagePaths.ErrorLogPath, $"{now:o}{Environment.NewLine}{ex}"); }
     catch (IOException) { }
 }
