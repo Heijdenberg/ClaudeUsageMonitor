@@ -127,17 +127,23 @@ public sealed class TranscriptImporter(UsageDatabase db)
                     InsertResponse(r, source, promptId, tx);
                     break;
                 case "custom-title":
-                    if (Json.String(r, "customTitle") is string title)
-                    {
-                        using var cmd = db.Command("UPDATE sessions SET title = $t WHERE session_id = $s", tx);
-                        cmd.Parameters.AddWithValue("$t", title);
-                        cmd.Parameters.AddWithValue("$s", source.SessionId);
-                        cmd.ExecuteNonQuery();
-                    }
+                    SetTitle("title", Json.String(r, "customTitle"), source, tx);
+                    break;
+                case "ai-title":
+                    SetTitle("ai_title", Json.String(r, "aiTitle"), source, tx);
                     break;
             }
         }
         return promptId;
+    }
+
+    private void SetTitle(string column, string? title, LogSource source, SqliteTransaction tx)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return;
+        using var cmd = db.Command($"UPDATE sessions SET {column} = $t WHERE session_id = $s", tx);
+        cmd.Parameters.AddWithValue("$t", title);
+        cmd.Parameters.AddWithValue("$s", source.SessionId);
+        cmd.ExecuteNonQuery();
     }
 
     private void InsertPrompt(string promptId, string sessionId, JsonElement r, string label, SqliteTransaction tx)

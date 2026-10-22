@@ -129,7 +129,8 @@ public static class RunReport
     private static Dictionary<string, string> LoadSessionTitles(UsageDatabase db, HashSet<string> sessions)
     {
         var result = new Dictionary<string, string>();
-        using var cmd = db.Command("SELECT session_id, title FROM sessions WHERE title IS NOT NULL");
+        // Your own name wins over the one Claude Code generates.
+        using var cmd = db.Command("SELECT session_id, coalesce(title, ai_title) FROM sessions WHERE coalesce(title, ai_title) IS NOT NULL");
         using var r = cmd.ExecuteReader();
         while (r.Read())
             if (sessions.Contains(r.GetString(0))) result[r.GetString(0)] = r.GetString(1);

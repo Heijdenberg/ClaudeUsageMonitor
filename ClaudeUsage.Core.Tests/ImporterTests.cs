@@ -37,7 +37,7 @@ public sealed class ImporterTests : IDisposable
         """{"type":"assistant","timestamp":"@AT","message":{"id":"@ID","model":"@MODEL","usage":{"input_tokens":2,"output_tokens":@OUT,"cache_read_input_tokens":1000,"cache_creation_input_tokens":300,"cache_creation":{"ephemeral_5m_input_tokens":100,"ephemeral_1h_input_tokens":200},"output_tokens_details":{"thinking_tokens":10},"server_tool_use":{"web_search_requests":1}}}}"""
             .Replace("@AT", at).Replace("@ID", id).Replace("@MODEL", model).Replace("@OUT", output.ToString());
 
-    private const string ToolResult ="""[{"type":"tool_result","tool_use_id":"toolu_q","content":"Svar: Ja"}]""";
+    private const string ToolResult = """[{"type":"tool_result","tool_use_id":"toolu_q","content":"Svar: Ja"}]""";
 
     private void WriteFlow()
     {
@@ -54,6 +54,7 @@ public sealed class ImporterTests : IDisposable
             Assistant("m3", "claude-opus-5-5", 20, "2026-10-22T08:05:05Z"),
             User("P3", "\"Nästa uppgift\\nmed fler rader\"", "2026-10-22T09:00:00Z", ""","turnOrigin":"human" """),
             Assistant("m4", "claude-haiku-5-5", 10, "2026-10-22T09:00:05Z"),
+            $$"""{"type":"ai-title","aiTitle":"Automatiskt namn","sessionId":"{{Session}}"}""",
             $$"""{"type":"custom-title","customTitle":"Mitt flöde","sessionId":"{{Session}}"}""",
         ]);
         File.WriteAllLines(_agentLog,
@@ -98,6 +99,46 @@ public sealed class ImporterTests : IDisposable
         Assert.Equal(400, planner.Tokens.Output);
         Assert.Equal(170, Assert.Single(flow.Agents, a => a.AgentId is null).Tokens.Output);
         Assert.Equal(flow.Agents.Sum(a => a.CostUsd!.Value), flow.CostUsd!.Value, 9);
+    }
+
+    [Fact]
+    public void Uses_Claude_Codes_generated_name_when_there_is_no_own_name()
+    {
+        File.WriteAllLines(_mainLog,
+        [
+            User("P1", "\"Hej\"", "2026-10-22T08:00:00Z"),
+            Assistant("m1", "claude-opus-5-5", 100, "2026-10-22T08:00:05Z"),
+            $$"""{"type":"ai-title","aiTitle":"Första namnet","sessionId":"{{Session}}"}""",
+            $$"""{"type":"ai-title","aiTitle":"Nästa updatering","sessionId":"{{Session}}"}""",
+        ]);
+        new TranscriptImporter(_db).ImportAll(_projects);
+        Assert.Equal("Nästa updatering", Assert.Single(RunReport.Load(_db, DateTimeOffset.UnixEpoch)).SessionTitle);
+    }
+
+    [Fact]
+    public void Upgrading_from_version_1_adds_generated_names_and_rereads_the_logs()
+    {
+        var path = Path.Combine(_root, "v1.db");
+        using (var v1 = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path};Pooling=False"))
+        {
+            v1.Open();
+            using var cmd = v1.CreateCommand();
+            cmd.CommandText = """
+                CREATE TABLE sessions (session_id TEXT PRIMARY KEY, project TEXT, title TEXT);
+                CREATE TABLE log_files (path TEXT PRIMARY KEY, offset INTEGER NOT NULL, prompt_id TEXT);
+                INSERT INTO sessions VALUES ('s', 'p', 'Eget namn');
+                INSERT INTO log_files VALUES ('x.jsonl', 123, NULL);
+                PRAGMA user_version = 1;
+                """;
+            cmd.ExecuteNonQuery();
+        }
+
+        using var db = UsageDatabase.OpenForWriting(path);
+        using var check = db.Command("SELECT (SELECT count(*) FROM log_files), (SELECT title || '/' || coalesce(ai_title, '-') FROM sessions)");
+        using var r = check.ExecuteReader();
+        r.Read();
+        Assert.Equal(0, r.GetInt64(0));
+        Assert.Equal("Eget namn/-", r.GetString(1));
     }
 
     [Fact]

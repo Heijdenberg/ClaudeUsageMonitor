@@ -190,7 +190,9 @@ public sealed class RunRow(RunSummary run)
     public (string, string?) Key { get; } = (run.SessionId, run.PromptId);
     public string SessionId => run.SessionId;
     public DateTime Start => run.Start.LocalDateTime;
-    public string Session => run.SessionTitle ?? run.SessionId[..8];
+    public string Session => run.SessionTitle ?? "–";
+    // The id never changes, unlike the name; the first 8 characters are enough to tell sessions apart.
+    public string ShortSessionId => run.SessionId[..8];
     public string Label => run.Label;
     public double DurationSeconds => (run.End - run.Start).TotalSeconds;
     public string Duration => MainWindow.FormatSpan(run.End - run.Start);

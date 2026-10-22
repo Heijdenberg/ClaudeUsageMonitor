@@ -147,6 +147,7 @@
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Start" Binding="{Binding Start, StringFormat='ddd d MMM HH:mm'}" SortMemberPath="Start"/>
                         <DataGridTextColumn Header="Session" Binding="{Binding Session}" Width="150"/>
+                        <DataGridTextColumn Header="Id" Binding="{Binding ShortSessionId}" FontFamily="Consolas"/>
                         <DataGridTextColumn Header="Prompt" Binding="{Binding Label}" Width="*"/>
                         <DataGridTextColumn Header="Tid" Binding="{Binding Duration}" SortMemberPath="DurationSeconds"/>
                         <DataGridTextColumn Header="Svar" Binding="{Binding Responses, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
