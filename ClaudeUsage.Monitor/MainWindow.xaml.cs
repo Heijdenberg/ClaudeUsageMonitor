@@ -25,6 +25,7 @@ public partial class MainWindow : Window
     private DateTime _runsLoadedAt = DateTime.MinValue;
     private List<RunRow> _allRuns = [];
     private bool _updatingFilter;
+    private bool _systemFrame;   // Windows 11 rounds the corners and draws the border itself
 
     public MainWindow()
     {
@@ -52,13 +53,25 @@ public partial class MainWindow : Window
         var maximized = WindowState == WindowState.Maximized;
         MaximizeButton.Content = maximized ? "\uE923" : "\uE922";   // Segoe Fluent Icons: restore / maximize
         MaximizeButton.ToolTip = maximized ? "Återställ" : "Maximera";
-        WindowFrame.BorderThickness = new Thickness(maximized ? 0 : 1);
+        UpdateFrame();
     }
+
+    private void UpdateFrame() =>
+        WindowFrame.BorderThickness = new Thickness(_systemFrame || WindowState == WindowState.Maximized ? 0 : 1);
 
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        HwndSource.FromHwnd(new WindowInteropHelper(this).Handle).AddHook(WndProc);
+        var hwnd = new WindowInteropHelper(this).Handle;
+        HwndSource.FromHwnd(hwnd).AddHook(WndProc);
+
+        // Windows 11 doesn't round borderless windows by default; ask for it, with a border in the app's line color.
+        // Fails on Windows 10, which keeps the square 1 px frame from the XAML.
+        const int DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWCP_ROUND = 2, DWMWA_BORDER_COLOR = 34;
+        int round = DWMWCP_ROUND, borderColor = 0x003A3A3A;   // COLORREF 0x00BBGGRR
+        _systemFrame = Native.DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int)) == 0;
+        if (_systemFrame) Native.DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref borderColor, sizeof(int));
+        UpdateFrame();
     }
 
     /// <summary>
@@ -97,6 +110,7 @@ public partial class MainWindow : Window
 
         [DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr hwnd, int flags);
         [DllImport("user32.dll")] public static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
+        [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
     }
 
     private bool RunsVisible => Tabs.SelectedIndex == 1;
