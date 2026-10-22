@@ -98,16 +98,6 @@ Om något går fel när data sparas skrivs statusraden ändå ut, och det senast
 
 Databasen uppgraderas automatiskt när en ny version av statusradsprogrammet öppnar den. Behöver loggarna läsas in på nytt görs det då, utan att svar räknas dubbelt.
 
-## Utan .NET: PowerShell-skriptet
-
-`scripts/statusline.ps1` är den tidigare versionen. Den visar statusraden och skriver `usage.json`, men inte databasen. Kopiera den till `%USERPROFILE%\.claude\statusline.ps1` och behåll den sparad som UTF-8 med BOM, annars blir "å" och "ä" skräptecken i Windows PowerShell 5.1. Använd det här kommandot:
-
-```json
-"command": "powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/<ANVÄNDARNAMN>/.claude/statusline.ps1"
-```
-
-Skriptet startar PowerShell vid varje körning, cirka 0,5 s per gång.
-
 ## Bra att veta
 
 - Gränserna finns bara med en Pro- eller Max-prenumeration. Använder du Claude Code med en API-nyckel finns inga gränser att visa: statusraden och ringarna visar "inväntar data", men fliken Körningar fungerar som vanligt eftersom tokendatan kommer från sessionsloggarna. Med en prenumeration dyker värdena upp efter sessionens första svar.
