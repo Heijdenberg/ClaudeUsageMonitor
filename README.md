@@ -13,12 +13,26 @@ Visar hur mycket av Claudes femtimmarsgräns och veckogräns som är förbrukat,
 
 - **Gränser.** Claude Code skickar `rate_limits.five_hour` och `rate_limits.seven_day` till statusraden. Flera sessioner rapporterar samtidigt, och en session som står still fortsätter rapportera gamla värden. Därför slås värdena ihop: inom ett fönster kan procenten bara öka, och en senare återställningstid betyder ett nytt fönster. Varje ändring sparas i `limit_history`.
 - **Tokens per svar**, från `%USERPROFILE%\.claude\projects\**\*.jsonl`: inmatning, utskrivet (varav tänkande), cacheläsning, cacheskrivning (5 min och 1 h), webbsökningar och modell. Ett svar som loggas på flera rader räknas en gång.
-- **Körningar.** Varje meddelande du skickar har ett `promptId`, och allt det sätter igång bär samma id: underagenter, svar via `AskUserQuestion` och verktygssvar. En körning är ett meddelande plus eventuella notiser från bakgrundsagenter som följer, fram till ditt nästa meddelande. Underagenternas namn kommer från deras `.meta.json` (agenttyp och beskrivning), och sessionsnamn från `/rename`.
+- **Körningar.** Varje meddelande du skickar har ett `promptId`, och allt det sätter igång bär samma id: underagenter, svar via `AskUserQuestion` och verktygssvar. En körning är ett meddelande plus eventuella notiser från bakgrundsagenter som följer, fram till ditt nästa meddelande. Underagenternas namn kommer från deras `.meta.json` (agenttyp och beskrivning).
+- **Sessionsnamn.** Ditt eget namn från `/rename` i första hand, annars namnet som Claude Code genererar automatiskt (`ai-title` i loggen; det kan ändras medan sessionen pågår). Session-id:t ändras aldrig och visas därför i en egen kolumn.
 - **Etiketter för prompter:** första raden i varje meddelande du skickar, högst 120 tecken, så att körningar går att skilja åt. Inget annat ur konversationerna sparas.
 
 Statusraden läser sin egen sessions logg vid varje körning och kontrollerar alla loggar högst en gång i minuten. Därför kommer även headless-körningar med `claude -p` med, så länge någon interaktiv session är öppen.
 
 **API-pris** är vad tokens skulle kosta på Anthropics API, enligt listpriserna i `ClaudeUsage.Core/Pricing.cs`. Det är ett sätt att väga tokentyper och modeller mot varandra, inte vad prenumerationen kostar. Användning på claude.ai eller i skrivbordsappens chatt finns inte i loggarna.
+
+## Använda appen
+
+**Gränser**
+- En ring per fönster, med procent, när fönstret återställs och tid kvar. Färgen blir gul från 75 % och röd från 90 %.
+- Under varje ring: antal svar, utskrivna tokens och API-pris sedan fönstret började, enligt Claude Codes loggar.
+- Längst ner: när en session senast rapporterade och när procenten senast ändrades. Har ingen session rapporterat på 30 sekunder visas en varning.
+
+**Körningar**
+- Välj **tidsperiod** (24 timmar, 7 dagar, 30 dagar eller allt) och **session** (alla, eller en enskild med namn och id). Filtren kombineras, och sammanfattningen överst räknar bara det som visas.
+- Varje rad är en körning: start, sessionens namn och id, första raden i ditt meddelande, tid, antal svar, tokens och API-pris. Klicka på en kolumnrubrik för att sortera.
+- Välj en körning för att se den uppdelad per agent och modell: huvudsessionen och varje underagent för sig, med inmatning, utskrivet, tänkande, cacheläsning, cacheskrivning och API-pris.
+- Listan uppdateras var 30:e sekund medan fliken är öppen, eller direkt med **Uppdatera**. Valt filter, vald rad och sortering behålls.
 
 ## Bygga och installera
 
@@ -72,7 +86,17 @@ Om något går fel när data sparas skrivs statusraden ändå ut, och det senast
 
 `%LOCALAPPDATA%\ClaudeUsage\claude-usage.db`, SQLite i WAL-läge. Den ligger i din egen profil eftersom den innehåller etiketter från dina meddelanden, och i Local (inte Roaming) eftersom SQLite-filer inte tål att synkas.
 
-Tabeller: `limits` (aktuella värden per fönster, med när de senast rapporterades och ändrades), `limit_history`, `responses`, `prompts`, `agents`, `sessions` och `log_files` (hur långt varje logg är inläst).
+| Tabell | Innehåll |
+|---|---|
+| `limits` | Aktuella värden per fönster, med när de senast rapporterades och ändrades. |
+| `limit_history` | En rad varje gång procenten eller återställningstiden ändras. |
+| `responses` | Ett svar per rad: session, prompt, underagent, modell och tokens per typ. |
+| `prompts` | Dina meddelanden: id, session, tid, ursprung (du eller en bakgrundsagent) och etikett. |
+| `agents` | Underagenter: typ, beskrivning och modell. |
+| `sessions` | Projekt, ditt eget namn (`title`) och Claude Codes namn (`ai_title`). |
+| `log_files` | Hur långt varje logg är inläst. |
+
+Databasen uppgraderas automatiskt när en ny version av statusradsprogrammet öppnar den. Behöver loggarna läsas in på nytt görs det då, utan att svar räknas dubbelt.
 
 ## Utan .NET: PowerShell-skriptet
 
