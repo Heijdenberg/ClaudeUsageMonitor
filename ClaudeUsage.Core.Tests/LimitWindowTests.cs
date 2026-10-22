@@ -1,6 +1,6 @@
-using UsageCore;
+using ClaudeUsage.Core;
 
-namespace UsageCore.Tests;
+namespace ClaudeUsage.Core.Tests;
 
 public class LimitWindowTests
 {

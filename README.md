@@ -1,13 +1,13 @@
-# UsageMonitor
+# ClaudeUsageMonitor
 
 Visar hur mycket av Claudes femtimmarsgräns och veckogräns som är förbrukat, och vad varje körning av dina agentflöden kostade i tokens.
 
 | Projekt | Vad det gör |
 |---|---|
-| `UsageStatusLine` | Claude Codes statusradskommando. Skriver ut statusraden, sparar gränserna och läser in tokenförbrukning från Claude Codes sessionsloggar till `C:\temp\usage.db`. Startar, gör sitt på cirka 30 ms och avslutas. |
-| `UsageMonitor` | WPF-app som läser databasen var 5:e sekund. **Gränser** visar gränserna som ringar, **Körningar** jämför körningar uppdelat per agent och modell. Den skriver ingenting. |
-| `UsageCore` | Delad kod: databas, inläsning av loggar, sammanslagning, priser. |
-| `UsageCore.Tests` | Enhetstester. |
+| `ClaudeUsage.StatusLine` | Claude Codes statusradskommando. Skriver ut statusraden, sparar gränserna och läser in tokenförbrukning från Claude Codes sessionsloggar till `%LOCALAPPDATA%\ClaudeUsage\claude-usage.db`. Startar, gör sitt på cirka 30 ms och avslutas. |
+| `ClaudeUsage.Monitor` | WPF-app som läser databasen var 5:e sekund. **Gränser** visar gränserna som ringar, **Körningar** jämför körningar uppdelat per agent och modell. Den skriver ingenting. |
+| `ClaudeUsage.Core` | Delad kod: databas, inläsning av loggar, sammanslagning, priser. |
+| `ClaudeUsage.Core.Tests` | Enhetstester. |
 
 ## Vad som sparas
 
@@ -20,7 +20,7 @@ Statusraden läser sin egen sessions logg vid varje körning och kontrollerar al
 
 `usage.json` skrivs fortfarande också, i samma format som tidigare.
 
-**API-pris** är vad tokens skulle kosta på Anthropics API, enligt listpriserna i `UsageCore/Pricing.cs`. Det är ett sätt att väga tokentyper och modeller mot varandra, inte vad prenumerationen kostar. Användning på claude.ai eller i skrivbordsappens chatt finns inte i loggarna.
+**API-pris** är vad tokens skulle kosta på Anthropics API, enligt listpriserna i `ClaudeUsage.Core/Pricing.cs`. Det är ett sätt att väga tokentyper och modeller mot varandra, inte vad prenumerationen kostar. Användning på claude.ai eller i skrivbordsappens chatt finns inte i loggarna.
 
 ## Bygga och installera
 
@@ -29,13 +29,13 @@ Kräver Windows, .NET 8 SDK och, för Native AOT-bygget, Visual Studios arbetsbe
 ```powershell
 # AOT-kompilatorn i .NET 8 letar efter vswhere.exe i PATH.
 $env:PATH = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer;$env:PATH"
-dotnet publish UsageStatusLine -c Release -r win-x64 -o "$env:USERPROFILE\.claude\usage-statusline"
+dotnet publish ClaudeUsage.StatusLine -c Release -r win-x64 -o "$env:USERPROFILE\.claude\claude-usage"
 
 # Läs in befintliga sessionsloggar en gång (tar några sekunder).
-& "$env:USERPROFILE\.claude\usage-statusline\UsageStatusLine.exe" --import-all
+& "$env:USERPROFILE\.claude\claude-usage\ClaudeUsage.StatusLine.exe" --import-all
 
 # Starta appen.
-dotnet run --project UsageMonitor
+dotnet run --project ClaudeUsage.Monitor
 ```
 
 Utan C++-arbetsbelastningen: publicera med `-p:PublishAot=false` i stället. Då krävs .NET 8-runtime, och programmet startar långsammare.
@@ -45,7 +45,7 @@ Peka sedan Claude Codes statusrad på exe-filen i `%USERPROFILE%\.claude\setting
 ```json
 "statusLine": {
   "type": "command",
-  "command": "C:/Users/<ANVÄNDARNAMN>/.claude/usage-statusline/UsageStatusLine.exe",
+  "command": "C:/Users/<ANVÄNDARNAMN>/.claude/claude-usage/ClaudeUsage.StatusLine.exe",
   "refreshInterval": 5
 }
 ```
@@ -55,24 +55,24 @@ För att uppdatera exe-filen senare publicerar du igen. Om en session råkar kö
 ## Testa
 
 ```powershell
-dotnet test UsageCore.Tests
+dotnet test ClaudeUsage.Core.Tests
 ```
 
-För att prova exe-filen utan att röra riktig data: peka `USAGE_DIR` på en testmapp, och `CLAUDE_CONFIG_DIR` på en tom mapp om loggarna ska hoppas över.
+För att prova exe-filen utan att röra riktig data: peka `CLAUDE_USAGE_DIR` på en testmapp (både databasen och `usage.json` hamnar där), och `CLAUDE_CONFIG_DIR` på en tom mapp om loggarna ska hoppas över.
 
 ```powershell
-$env:USAGE_DIR = Join-Path $env:TEMP 'usage-test'
+$env:CLAUDE_USAGE_DIR = Join-Path $env:TEMP 'usage-test'
 $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-'{"rate_limits":{"five_hour":{"used_percentage":42,"resets_at":' + ($now+8100) + '}}}' | & "$env:USERPROFILE\.claude\usage-statusline\UsageStatusLine.exe"
+'{"rate_limits":{"five_hour":{"used_percentage":42,"resets_at":' + ($now+8100) + '}}}' | & "$env:USERPROFILE\.claude\claude-usage\ClaudeUsage.StatusLine.exe"
 # 5h: 42% (återställs om 2h 14m) | 7d: inväntar data
-Remove-Item $env:USAGE_DIR -Recurse -Force; Remove-Item Env:USAGE_DIR
+Remove-Item $env:CLAUDE_USAGE_DIR -Recurse -Force; Remove-Item Env:CLAUDE_USAGE_DIR
 ```
 
-Om något går fel när data sparas skrivs statusraden ändå ut, och det senaste felet hamnar i `C:\temp\usage-statusline-error.txt`.
+Om något går fel när data sparas skrivs statusraden ändå ut, och det senaste felet hamnar i `%LOCALAPPDATA%\ClaudeUsage\claude-usage-error.txt`.
 
 ## Filer
 
-- `C:\temp\usage.db`: SQLite (WAL). Tabellerna `limits`, `limit_history`, `responses`, `prompts`, `agents`, `sessions` och `log_files` (hur långt varje logg är inläst).
+- `%LOCALAPPDATA%\ClaudeUsage\claude-usage.db`: SQLite (WAL). Ligger i din egen profil eftersom den innehåller etiketter från dina meddelanden, och i Local (inte Roaming) eftersom SQLite-filer inte tål att synkas. Tabellerna `limits`, `limit_history`, `responses`, `prompts`, `agents`, `sessions` och `log_files` (hur långt varje logg är inläst).
 - `C:\temp\usage.json`: tidsstämpel, procent och återställningstid för båda fönstren, `null` när värden saknas.
 
 ```json

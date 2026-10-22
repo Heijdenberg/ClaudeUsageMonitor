@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 
-namespace UsageMonitor;
+namespace ClaudeUsage.Monitor;
 
 /// <summary>A ring that fills clockwise from the top, with the percentage in the middle.</summary>
 public class RingGauge : FrameworkElement

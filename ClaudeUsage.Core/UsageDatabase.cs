@@ -1,11 +1,11 @@
 using System.Data;
 using Microsoft.Data.Sqlite;
 
-namespace UsageCore;
+namespace ClaudeUsage.Core;
 
 /// <summary>
-/// usage.db: limit percentages over time and token usage per response from Claude Code's session logs.
-/// UsageStatusLine writes it (many short-lived processes at once); UsageMonitor only reads it.
+/// claude-usage.db: limit percentages over time and token usage per response from Claude Code's session logs.
+/// ClaudeUsage.StatusLine writes it (many short-lived processes at once); ClaudeUsage.Monitor only reads it.
 /// Times are stored as Unix milliseconds, reset times as Unix seconds.
 /// </summary>
 public sealed class UsageDatabase : IDisposable
@@ -65,7 +65,7 @@ public sealed class UsageDatabase : IDisposable
     /// <summary>Opens an existing database read-only. Throws if it doesn't exist yet.</summary>
     public static UsageDatabase OpenReadOnly(string path)
     {
-        if (!File.Exists(path)) throw new FileNotFoundException("usage.db finns inte än.", path);
+        if (!File.Exists(path)) throw new FileNotFoundException("claude-usage.db finns inte än.", path);
         return Open($"Data Source={path};Mode=ReadOnly;Pooling=False");
     }
 

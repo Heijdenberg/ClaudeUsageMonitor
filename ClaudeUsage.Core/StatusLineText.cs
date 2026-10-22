@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace UsageCore;
+namespace ClaudeUsage.Core;
 
 /// <summary>The text Claude Code shows in the status line.</summary>
 public static class StatusLineText

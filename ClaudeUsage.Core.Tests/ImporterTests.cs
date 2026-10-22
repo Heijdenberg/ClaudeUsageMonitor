@@ -1,6 +1,6 @@
-using UsageCore;
+using ClaudeUsage.Core;
 
-namespace UsageCore.Tests;
+namespace ClaudeUsage.Core.Tests;
 
 public sealed class ImporterTests : IDisposable
 {
@@ -21,7 +21,7 @@ public sealed class ImporterTests : IDisposable
         _agentLog = Path.Combine(subagents, "agent-abc123.jsonl");
         File.WriteAllText(Path.Combine(subagents, "agent-abc123.meta.json"),
             """{"agentType":"planner","description":"Plan the change","toolUseId":"toolu_1","model":"opus"}""");
-        _db = UsageDatabase.OpenForWriting(Path.Combine(_root, "usage.db"));
+        _db = UsageDatabase.OpenForWriting(Path.Combine(_root, "claude-usage.db"));
     }
 
     public void Dispose()

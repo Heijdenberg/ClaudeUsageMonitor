@@ -5,9 +5,9 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Data.Sqlite;
-using UsageCore;
+using ClaudeUsage.Core;
 
-namespace UsageMonitor;
+namespace ClaudeUsage.Monitor;
 
 public partial class MainWindow : Window
 {
@@ -42,7 +42,7 @@ public partial class MainWindow : Window
         }
         catch (FileNotFoundException)
         {
-            ShowNoData($"Hittar inte {UsagePaths.DatabasePath}. Har UsageStatusLine körts från Claude Codes statusrad?");
+            ShowNoData($"Hittar inte {UsagePaths.DatabasePath}. Har ClaudeUsage.StatusLine körts från Claude Codes statusrad?");
         }
         catch (SqliteException ex)
         {

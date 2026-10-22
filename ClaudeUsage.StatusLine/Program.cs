@@ -1,5 +1,5 @@
 using System.Text;
-using UsageCore;
+using ClaudeUsage.Core;
 
 // Claude Code's status line command. Reads the session JSON from stdin, prints the status line,
 // and records limits and token usage. Run with --import-all to read every session log once.
@@ -40,7 +40,7 @@ try
     // Other sessions, including headless `claude -p` runs that have no status line of their own.
     importer.ImportAllIfDue(UsagePaths.ClaudeProjectsDir, TimeSpan.FromSeconds(60), now, maxBytesPerRun);
 }
-catch (Exception ex) { errors.Add($"usage.db: {ex}"); }
+catch (Exception ex) { errors.Add($"claude-usage.db: {ex}"); }
 
 if (errors.Count > 0)
 {

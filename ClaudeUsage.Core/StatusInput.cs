@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace UsageCore;
+namespace ClaudeUsage.Core;
 
 /// <summary>The parts of Claude Code's status line JSON (stdin) that we use.</summary>
 public sealed record StatusInput(LimitWindow FiveHour, LimitWindow SevenDay, string? TranscriptPath)

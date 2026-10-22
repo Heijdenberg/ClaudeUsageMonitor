@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace UsageMonitor;
+namespace ClaudeUsage.Monitor;
 
 public partial class App : Application
 {

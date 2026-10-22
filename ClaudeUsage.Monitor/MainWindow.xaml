@@ -1,7 +1,7 @@
-<Window x:Class="UsageMonitor.MainWindow"
+<Window x:Class="ClaudeUsage.Monitor.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:UsageMonitor"
+        xmlns:local="clr-namespace:ClaudeUsage.Monitor"
         Title="Claude-användning" Width="980" Height="660" MinWidth="520" MinHeight="420"
         Background="#1E1E1E" Foreground="#E6E6E6" FontFamily="Segoe UI" FontSize="14" Language="sv-SE">
     <Window.Resources>

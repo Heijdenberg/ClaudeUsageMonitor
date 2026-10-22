@@ -1,7 +1,7 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
-namespace UsageCore;
+namespace ClaudeUsage.Core;
 
 /// <summary>
 /// usage.json: timestamp, percentage and reset time for both windows. Kept alongside the database

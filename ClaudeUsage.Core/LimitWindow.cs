@@ -1,4 +1,4 @@
-namespace UsageCore;
+namespace ClaudeUsage.Core;
 
 /// <summary>One rate-limit window (five-hour or seven-day). Either value can be missing.</summary>
 public sealed record LimitWindow(double? UsedPercentage, DateTimeOffset? ResetsAt)

@@ -1,4 +1,4 @@
-namespace UsageCore;
+namespace ClaudeUsage.Core;
 
 /// <summary>USD per million tokens.</summary>
 public sealed record ModelPrice(double Input, double Output, double CacheWrite5m, double CacheWrite1h, double CacheRead);

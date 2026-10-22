@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 
-namespace UsageCore;
+namespace ClaudeUsage.Core;
 
 /// <summary>
 /// Reads token usage from Claude Code's session logs into the database:
