@@ -15,7 +15,7 @@ Visar hur mycket av Claudes femtimmarsgräns och veckogräns som är förbrukat,
 - **Tokens per svar**, från `%USERPROFILE%\.claude\projects\**\*.jsonl`: inmatning, utskrivet (varav tänkande), cacheläsning, cacheskrivning (5 min och 1 h), webbsökningar och modell. Ett svar som loggas på flera rader räknas en gång.
 - **Körningar.** Varje meddelande du skickar har ett `promptId`, och allt det sätter igång bär samma id: underagenter, svar via `AskUserQuestion` och verktygssvar. En körning är ett meddelande plus eventuella notiser från bakgrundsagenter som följer, fram till ditt nästa meddelande. Underagenternas namn kommer från deras `.meta.json` (agenttyp och beskrivning).
 - **Sessionsnamn.** Ditt eget namn från `/rename` i första hand, annars namnet som Claude Code genererar automatiskt (`ai-title` i loggen; det kan ändras medan sessionen pågår). Session-id:t ändras aldrig och visas därför i en egen kolumn.
-- **Etiketter för prompter:** första raden i varje meddelande du skickar, högst 120 tecken, så att körningar går att skilja åt. Inget annat ur konversationerna sparas.
+- **Ingen text ur dina meddelanden.** Ett meddelande kan innehålla hemligheter, till exempel en nyckel, så databasen sparar bara var meddelandet finns i Claude Codes logg (fil och position). Appen läser första raden därifrån när den visas. För slash-kommandon sparas kommandonamnet, till exempel `/workflow`, men aldrig det som står efter. När Claude Code har rensat bort en logg (som standard efter 30 dagar) visas bara kommandonamnet, eller "(texten finns inte längre i loggen)".
 
 Statusraden läser sin egen sessions logg vid varje körning och kontrollerar alla loggar högst en gång i minuten. Därför kommer även headless-körningar med `claude -p` med, så länge någon interaktiv session är öppen.
 
@@ -84,14 +84,14 @@ Om något går fel när data sparas skrivs statusraden ändå ut, och det senast
 
 ## Databasen
 
-`%LOCALAPPDATA%\ClaudeUsage\claude-usage.db`, SQLite i WAL-läge. Den ligger i din egen profil eftersom den innehåller etiketter från dina meddelanden, och i Local (inte Roaming) eftersom SQLite-filer inte tål att synkas.
+`%LOCALAPPDATA%\ClaudeUsage\claude-usage.db`, SQLite i WAL-läge. Den ligger i din egen profil, eftersom sessionsnamn och agentbeskrivningar säger en del om vad du arbetar med, och i Local (inte Roaming) eftersom SQLite-filer inte tål att synkas.
 
 | Tabell | Innehåll |
 |---|---|
 | `limits` | Aktuella värden per fönster, med när de senast rapporterades och ändrades. |
 | `limit_history` | En rad varje gång procenten eller återställningstiden ändras. |
 | `responses` | Ett svar per rad: session, prompt, underagent, modell och tokens per typ. |
-| `prompts` | Dina meddelanden: id, session, tid, ursprung (du eller en bakgrundsagent) och etikett. |
+| `prompts` | Dina meddelanden: id, session, tid, ursprung (du eller en bakgrundsagent), kommandonamn och position i loggen. Ingen text. |
 | `agents` | Underagenter: typ, beskrivning och modell. |
 | `sessions` | Projekt, ditt eget namn (`title`) och Claude Codes namn (`ai_title`). |
 | `log_files` | Hur långt varje logg är inläst. |

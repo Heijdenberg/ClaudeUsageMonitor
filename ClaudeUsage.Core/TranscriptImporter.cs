@@ -79,13 +79,15 @@ public sealed class TranscriptImporter(UsageDatabase db)
         if (source.AgentId is not null) UpsertAgent(source, path, tx);
         UpsertSession(source, tx);
 
+        var logPath = Path.GetFullPath(path);
         var start = 0;
         while (start < end)
         {
             var nl = Array.IndexOf(chunk, (byte)'\n', start, end - start);
             var line = new ReadOnlyMemory<byte>(chunk, start, nl - start);
+            var position = new LogPosition(logPath, offset + start);
             start = nl + 1;
-            if (line.Length > 1) promptId = ProcessLine(line, source, promptId, tx);
+            if (line.Length > 1) promptId = ProcessLine(line, source, position, promptId, tx);
         }
 
         using (var cmd = db.Command("""
@@ -102,7 +104,7 @@ public sealed class TranscriptImporter(UsageDatabase db)
     }
 
     /// <summary>Handles one log record and returns the prompt in effect after it.</summary>
-    private string? ProcessLine(ReadOnlyMemory<byte> line, LogSource source, string? promptId, SqliteTransaction tx)
+    private string? ProcessLine(ReadOnlyMemory<byte> line, LogSource source, LogPosition position, string? promptId, SqliteTransaction tx)
     {
         JsonDocument doc;
         try { doc = JsonDocument.Parse(line); }
@@ -120,7 +122,7 @@ public sealed class TranscriptImporter(UsageDatabase db)
                     {
                         promptId = id;
                         if (source.AgentId is null && !Json.True(r, "isMeta") && PromptLabel.FromMessage(r) is var (label, isText) && isText)
-                            InsertPrompt(id, source.SessionId, r, label, tx);
+                            InsertPrompt(id, source.SessionId, r, label, position, tx);
                     }
                     break;
                 case "assistant":
@@ -146,16 +148,23 @@ public sealed class TranscriptImporter(UsageDatabase db)
         cmd.ExecuteNonQuery();
     }
 
-    private void InsertPrompt(string promptId, string sessionId, JsonElement r, string label, SqliteTransaction tx)
+    /// <summary>
+    /// Records a message you sent. The label is only used to classify it here; the database keeps
+    /// where the text is in the log, plus the command name for slash commands.
+    /// </summary>
+    private void InsertPrompt(string promptId, string sessionId, JsonElement r, string label, LogPosition position, SqliteTransaction tx)
     {
         using var cmd = db.Command("""
-            INSERT OR IGNORE INTO prompts (prompt_id, session_id, at, origin, label) VALUES ($id, $s, $at, $o, $l)
+            INSERT OR IGNORE INTO prompts (prompt_id, session_id, at, origin, command, log_path, log_offset)
+            VALUES ($id, $s, $at, $o, $c, $p, $off)
             """, tx);
         cmd.Parameters.AddWithValue("$id", promptId);
         cmd.Parameters.AddWithValue("$s", sessionId);
         cmd.Parameters.AddWithValue("$at", (Json.Date(r, "timestamp") ?? DateTimeOffset.UnixEpoch).ToUnixTimeMilliseconds());
         cmd.Parameters.AddWithValue("$o", PromptLabel.Origin(r, label));
-        cmd.Parameters.AddWithValue("$l", label);
+        cmd.Parameters.AddWithValue("$c", (object?)PromptLabel.CommandName(r) ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$p", position.Path);
+        cmd.Parameters.AddWithValue("$off", position.Offset);
         cmd.ExecuteNonQuery();
     }
 
@@ -253,6 +262,8 @@ public sealed class TranscriptImporter(UsageDatabase db)
     }
 
     private static string Key(string path) => Path.GetFullPath(path).ToLowerInvariant();
+
+    internal readonly record struct LogPosition(string Path, long Offset);
 
     /// <summary>Which session (and subagent) a log file belongs to, from its location.</summary>
     internal sealed record LogSource(string Project, string SessionId, string? AgentId)

@@ -102,6 +102,53 @@ public sealed class ImporterTests : IDisposable
     }
 
     [Fact]
+    public void Stores_no_prompt_text_only_where_it_is_and_the_command_name()
+    {
+        WriteFlow();
+        new TranscriptImporter(_db).ImportAll(_projects);
+
+        using (var cmd = _db.Command("SELECT group_concat(name) FROM pragma_table_info('prompts')"))
+            Assert.Equal("prompt_id,session_id,at,origin,command,log_path,log_offset", cmd.ExecuteScalar());
+        using (var cmd = _db.Command("SELECT group_concat(prompt_id || '=' || coalesce(command, '-')) FROM prompts"))
+            Assert.Equal("P1=/workflow,P2=-,P3=-", cmd.ExecuteScalar());
+
+        // Once Claude Code has cleaned up the log, only the command name is left.
+        File.Delete(_mainLog);
+        var runs = RunReport.Load(_db, DateTimeOffset.UnixEpoch);
+        Assert.Equal("(texten finns inte längre i loggen)", runs[0].Label);
+        Assert.Equal("/workflow (texten finns inte längre i loggen)", runs[1].Label);
+    }
+
+    [Fact]
+    public void Upgrading_from_version_2_removes_stored_prompt_texts_from_the_file()
+    {
+        var path = Path.Combine(_root, "v2.db");
+        using (var v2 = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path};Pooling=False"))
+        {
+            v2.Open();
+            using var cmd = v2.CreateCommand();
+            cmd.CommandText = """
+                CREATE TABLE sessions (session_id TEXT PRIMARY KEY, project TEXT, title TEXT, ai_title TEXT);
+                CREATE TABLE prompts (prompt_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, at INTEGER NOT NULL, origin TEXT NOT NULL, label TEXT);
+                CREATE TABLE log_files (path TEXT PRIMARY KEY, offset INTEGER NOT NULL, prompt_id TEXT);
+                INSERT INTO prompts VALUES ('P1', 's', 0, 'human', 'min nyckel är HEMLIG-sk-ant-123');
+                INSERT INTO log_files VALUES ('x.jsonl', 123, NULL);
+                PRAGMA user_version = 2;
+                """;
+            cmd.ExecuteNonQuery();
+        }
+
+        using (var db = UsageDatabase.OpenForWriting(path))
+        {
+            using var cmd = db.Command("SELECT (SELECT count(*) FROM prompts) + (SELECT count(*) FROM log_files)");
+            Assert.Equal(0L, cmd.ExecuteScalar());
+        }
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        var bytes = File.ReadAllBytes(path).Concat(File.Exists(path + "-wal") ? File.ReadAllBytes(path + "-wal") : []).ToArray();
+        Assert.DoesNotContain("HEMLIG", System.Text.Encoding.UTF8.GetString(bytes));
+    }
+
+    [Fact]
     public void Uses_Claude_Codes_generated_name_when_there_is_no_own_name()
     {
         File.WriteAllLines(_mainLog,

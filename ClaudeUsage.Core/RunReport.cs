@@ -23,14 +23,15 @@ public static class RunReport
         if (groups.Count == 0) return [];
 
         var sessions = groups.Select(g => g.SessionId).ToHashSet();
-        var runOfPrompt = new Dictionary<string, (string RunKey, string Label, DateTimeOffset At)>();
+        // The prompt that starts each run: the message you sent before any background-agent notifications.
+        var headOf = new Dictionary<string, Prompt>();
         foreach (var session in sessions)
         {
-            (string Key, string Label, DateTimeOffset At)? current = null;
+            Prompt? head = null;
             foreach (var p in LoadPrompts(db, session))
             {
-                if (p.Origin == PromptLabel.Human || current is null) current = (p.PromptId, p.Label, p.At);
-                runOfPrompt[p.PromptId] = current.Value;
+                if (p.Origin == PromptLabel.Human || head is null) head = p;
+                headOf[p.PromptId] = head;
             }
         }
 
@@ -38,12 +39,11 @@ public static class RunReport
         var agentNames = LoadAgentNames(db, sessions);
 
         return groups
-            .GroupBy(g => g.PromptId is not null && runOfPrompt.TryGetValue(g.PromptId, out var run)
-                ? (g.SessionId, run.RunKey) : (g.SessionId, RunKey: "?"))
+            .GroupBy(g => g.PromptId is not null && headOf.TryGetValue(g.PromptId, out var head)
+                ? (g.SessionId, RunKey: head.PromptId) : (g.SessionId, RunKey: "?"))
             .Select(run =>
             {
-                var first = run.First();
-                runOfPrompt.TryGetValue(run.Key.RunKey, out var head);
+                var head = headOf.GetValueOrDefault(run.Key.RunKey);
                 var agents = run
                     .GroupBy(g => (g.AgentId, g.Model))
                     .Select(a => new AgentUsage(
@@ -56,8 +56,8 @@ public static class RunReport
                     .ToList();
                 return new RunSummary(
                     run.Key.SessionId, titles.GetValueOrDefault(run.Key.SessionId),
-                    run.Key.RunKey == "?" ? null : run.Key.RunKey,
-                    run.Key.RunKey == "?" ? "(utan prompt)" : head.Label,
+                    head?.PromptId,
+                    head is null ? "(utan prompt)" : LabelOf(head),
                     run.Min(g => g.First), run.Max(g => g.Last),
                     run.Aggregate(TokenCounts.Zero, (sum, g) => sum + g.Tokens), SumCost(run), agents);
             })
@@ -113,17 +113,34 @@ public static class RunReport
         return result;
     }
 
-    private sealed record Prompt(string PromptId, string Origin, string Label, DateTimeOffset At);
+    private sealed record Prompt(string PromptId, string Origin, string? Command, string? LogPath, long LogOffset);
 
     private static List<Prompt> LoadPrompts(UsageDatabase db, string sessionId)
     {
-        using var cmd = db.Command("SELECT prompt_id, origin, coalesce(label, ''), at FROM prompts WHERE session_id = $s ORDER BY at, rowid");
+        using var cmd = db.Command("SELECT prompt_id, origin, command, log_path, log_offset FROM prompts WHERE session_id = $s ORDER BY at, rowid");
         cmd.Parameters.AddWithValue("$s", sessionId);
         using var r = cmd.ExecuteReader();
         var result = new List<Prompt>();
         while (r.Read())
-            result.Add(new Prompt(r.GetString(0), r.GetString(1), r.GetString(2), DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(3))));
+            result.Add(new Prompt(r.GetString(0), r.GetString(1), r.IsDBNull(2) ? null : r.GetString(2),
+                r.IsDBNull(3) ? null : r.GetString(3), r.IsDBNull(4) ? 0 : r.GetInt64(4)));
         return result;
+    }
+
+    // Labels read from the logs; a message's text never changes, so one read per process is enough.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> Labels = new();
+
+    /// <summary>
+    /// The first line of the message, read from Claude Code's log (the database holds no text). Once the
+    /// log has been cleaned up, only a slash command's name is left.
+    /// </summary>
+    private static string LabelOf(Prompt p)
+    {
+        var key = $"{p.LogPath}|{p.LogOffset}|{p.PromptId}";
+        if (Labels.TryGetValue(key, out var cached)) return cached;
+        if (p.LogPath is not null && PromptLabel.ReadFromLog(p.LogPath, p.LogOffset, p.PromptId) is string label)
+            return Labels[key] = label;
+        return p.Command is null ? "(texten finns inte längre i loggen)" : $"{p.Command} (texten finns inte längre i loggen)";
     }
 
     private static Dictionary<string, string> LoadSessionTitles(UsageDatabase db, HashSet<string> sessions)
