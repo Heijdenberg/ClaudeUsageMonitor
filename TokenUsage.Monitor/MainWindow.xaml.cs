@@ -67,7 +67,7 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Sets up a borderless window: maximizing stays within the work area, and on Windows 11 the corners are
-    /// rounded with a border in the window's background color. False on Windows 10, where the window keeps its own
+    /// rounded with a border in the app's accent color. False on Windows 10, where the window keeps its own
     /// square 1 px frame from the XAML.
     /// </summary>
     internal static bool UseSystemFrame(Window window)
@@ -76,7 +76,7 @@ public partial class MainWindow : Window
         HwndSource.FromHwnd(hwnd).AddHook(WndProc);
 
         const int DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWCP_ROUND = 2, DWMWA_BORDER_COLOR = 34;
-        var frame = ((SolidColorBrush)window.FindResource("Background")).Color;
+        var frame = ((SolidColorBrush)window.FindResource("Accent")).Color;
         int round = DWMWCP_ROUND, borderColor = frame.R | frame.G << 8 | frame.B << 16;   // COLORREF 0x00BBGGRR
         if (Native.DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int)) != 0) return false;
         Native.DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref borderColor, sizeof(int));

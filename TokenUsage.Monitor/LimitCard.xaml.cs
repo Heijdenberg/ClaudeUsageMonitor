@@ -8,10 +8,9 @@ namespace TokenUsage.Monitor;
 /// <summary>One rate-limit window: how much is left, when it resets, and what Claude Code used in it.</summary>
 public partial class LimitCard : UserControl
 {
-    // Dark enough to read on the yellow window; "yellow" is an amber so it doesn't vanish into it.
-    internal static readonly Brush Green = Frozen(0x1B, 0x6E, 0x20);
-    internal static readonly Brush Yellow = Frozen(0xB0, 0x5A, 0x00);
-    internal static readonly Brush Red = Frozen(0xC6, 0x28, 0x28);
+    internal static readonly Brush Green = Frozen(0x4C, 0xAF, 0x50);
+    internal static readonly Brush Yellow = Frozen(0xE0, 0xB0, 0x30);
+    internal static readonly Brush Red = Frozen(0xE0, 0x50, 0x50);
 
     public LimitCard() => InitializeComponent();
 

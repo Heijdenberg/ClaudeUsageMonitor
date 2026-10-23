@@ -16,7 +16,7 @@
             <Setter Property="Width" Value="32"/>
             <Setter Property="Height" Value="32"/>
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{StaticResource Accent}"/>
+            <Setter Property="Foreground" Value="{StaticResource Background}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/>
             <Setter Property="FontSize" Value="10"/>
@@ -33,11 +33,12 @@
                 </Setter.Value>
             </Setter>
             <Style.Triggers>
+                <!-- The title bar is the accent color; darken it a little rather than switching to another color. -->
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{StaticResource SurfaceRaised}"/>
+                    <Setter Property="Background" Value="#22000000"/>
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="{StaticResource CardEdge}"/>
+                    <Setter Property="Background" Value="#44000000"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -60,7 +61,7 @@
         <Style x:Key="ModelCell" TargetType="TextBlock" BasedOn="{StaticResource Caption}">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridCell}}" Value="True">
-                    <Setter Property="Foreground" Value="{StaticResource Selection}"/>
+                    <Setter Property="Foreground" Value="{StaticResource Accent}"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -85,17 +86,18 @@
     </Window.Resources>
 
     <!-- Fallback frame for when Windows doesn't draw a rounded border (Windows 10); code-behind decides. -->
-    <Border x:Name="WindowFrame" BorderBrush="{StaticResource Background}" BorderThickness="1">
-        <Grid>
+    <Border x:Name="WindowFrame" BorderBrush="{StaticResource Accent}" BorderThickness="1">
+        <!-- Yellow behind everything, so the content area's rounded top corners show the title bar's color. -->
+        <Grid Background="{StaticResource Accent}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="32"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
             <!-- Title bar: the empty area is the WindowChrome caption, so it drags and double-click maximizes. -->
-            <Grid Background="Transparent">
+            <Grid Background="{StaticResource Accent}">
                 <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
-                           Foreground="{StaticResource Accent}" FontSize="13" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                           Foreground="{StaticResource Background}" FontSize="13" VerticalAlignment="Center" Margin="12,0,0,0"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Style="{StaticResource CaptionButton}" Content="&#xE921;" ToolTip="Minimera" Click="Minimize_Click"/>
                     <Button x:Name="MaximizeButton" Style="{StaticResource CaptionButton}" Content="&#xE922;" ToolTip="Maximera"
@@ -103,6 +105,8 @@
                     <Button Style="{StaticResource CloseButton}" Content="&#xE8BB;" ToolTip="Stäng" Click="Close_Click"/>
                 </StackPanel>
             </Grid>
+
+            <Border Grid.Row="1" Background="{StaticResource Background}" CornerRadius="10,10,0,0"/>
 
             <TabControl x:Name="Tabs" Grid.Row="1" Background="Transparent" BorderThickness="0,1,0,0" BorderBrush="{StaticResource Line}"
                         Padding="0" Margin="16,4,16,16" SelectionChanged="Tabs_SelectionChanged">
