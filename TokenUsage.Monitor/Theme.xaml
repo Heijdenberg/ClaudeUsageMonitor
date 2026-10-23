@@ -3,7 +3,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <SolidColorBrush x:Key="Background" Color="#000000"/>
+    <SolidColorBrush x:Key="Background" Color="#0C0C0C"/>
     <SolidColorBrush x:Key="Surface" Color="#25272B"/>
     <SolidColorBrush x:Key="SurfaceRaised" Color="#2E3136"/>
     <SolidColorBrush x:Key="CardEdge" Color="#30333A"/>
