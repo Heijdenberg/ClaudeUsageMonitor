@@ -12,4 +12,8 @@
     <ProjectReference Include="..\TokenUsage.Core\TokenUsage.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Resource Include="Fonts\*.ttf" />
+  </ItemGroup>
+
 </Project>

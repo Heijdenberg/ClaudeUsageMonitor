@@ -67,7 +67,7 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Sets up a borderless window: maximizing stays within the work area, and on Windows 11 the corners are
-    /// rounded with a border in the app's line color. False on Windows 10, where the window keeps its own
+    /// rounded with a border in the window's background color. False on Windows 10, where the window keeps its own
     /// square 1 px frame from the XAML.
     /// </summary>
     internal static bool UseSystemFrame(Window window)
@@ -76,7 +76,8 @@ public partial class MainWindow : Window
         HwndSource.FromHwnd(hwnd).AddHook(WndProc);
 
         const int DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWCP_ROUND = 2, DWMWA_BORDER_COLOR = 34;
-        int round = DWMWCP_ROUND, borderColor = 0x00413A37;   // COLORREF 0x00BBGGRR: the theme's Line, #373A41
+        var frame = ((SolidColorBrush)window.FindResource("Background")).Color;
+        int round = DWMWCP_ROUND, borderColor = frame.R | frame.G << 8 | frame.B << 16;   // COLORREF 0x00BBGGRR
         if (Native.DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int)) != 0) return false;
         Native.DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref borderColor, sizeof(int));
         return true;
@@ -271,7 +272,6 @@ public partial class MainWindow : Window
         Runs.ItemsSource = runs;
         foreach (var s in sort) Runs.Items.SortDescriptions.Add(s);
         Runs.SelectedItem = runs.FirstOrDefault(r => r.Key == selected);
-        MarkRepeatedSessions();
         var maxCost = runs.Max(r => r.Cost) ?? 0;
         foreach (var r in runs) r.CostShare = maxCost > 0 ? (r.Cost ?? 0) / maxCost : 0;
 
@@ -279,21 +279,6 @@ public partial class MainWindow : Window
         ResponseCount.Text = runs.Sum(r => r.Responses).ToString("N0", Swedish);
         CostTotal.Text = string.Format(Swedish, "≈ {0:N2} $", runs.Sum(r => r.Cost ?? 0));
         RunsSummary.Text = $"Uppdaterad {_runsLoadedAt:HH:mm:ss}";
-    }
-
-    private void Runs_Sorting(object sender, DataGridSortingEventArgs e) =>
-        // The grid sorts after this event; mark the rows once it has.
-        Dispatcher.BeginInvoke(MarkRepeatedSessions, DispatcherPriority.Background);
-
-    /// <summary>Fades the session name on rows in the same session as the row above, in the order shown.</summary>
-    private void MarkRepeatedSessions()
-    {
-        string? previous = null;
-        foreach (RunRow row in Runs.Items)
-        {
-            row.SameSessionAsAbove = row.SessionId == previous;
-            previous = row.SessionId;
-        }
     }
 
     private void Runs_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -428,19 +413,6 @@ public sealed class RunRow(RunSummary run) : System.ComponentModel.INotifyProper
     public string SessionToolTip => $"{Session}\nSessions-id: {SessionId}";
     public string Details => string.Join("  ·  ", Start.ToString("ddd d MMM HH:mm", MainWindow.Swedish), Session,
         "session " + SessionId, Duration, string.Format(MainWindow.Swedish, "{0:N2} $", Cost ?? 0));
-
-    /// <summary>Set from the order shown, so a run of rows from one session reads as a group.</summary>
-    public bool SameSessionAsAbove
-    {
-        get => _sameSessionAsAbove;
-        set
-        {
-            if (_sameSessionAsAbove == value) return;
-            _sameSessionAsAbove = value;
-            PropertyChanged?.Invoke(this, new(nameof(SameSessionAsAbove)));
-        }
-    }
-    private bool _sameSessionAsAbove;
 
     /// <summary>The price as a share of the largest in the list shown, for the bar behind it.</summary>
     public double CostShare

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Windows;
+using System.Windows.Documents;
 using System.Windows.Media;
 using TokenUsage.Core;
 
@@ -108,5 +109,5 @@ public class UsageChart : FrameworkElement
     private string Format => _to - _from > TimeSpan.FromDays(1) ? "ddd d MMM HH:mm" : "HH:mm";
 
     private FormattedText Text(string s, double dpi) =>
-        new(s, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface("Segoe UI"), 11, LabelBrush, dpi);
+        new(s, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface(TextElement.GetFontFamily(this), FontStyles.Normal, TextElement.GetFontWeight(this), FontStretches.Normal), 12, LabelBrush, dpi);
 }

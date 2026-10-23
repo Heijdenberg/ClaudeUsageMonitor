@@ -4,13 +4,13 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="Prompt" Width="720" Height="460" MinWidth="360" MinHeight="220"
         WindowStyle="None" ResizeMode="CanResize" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
-        Background="{StaticResource Background}" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="14" Language="sv-SE">
+        Background="{StaticResource Background}" Foreground="{StaticResource Text}" FontFamily="{StaticResource UiFont}" FontWeight="{StaticResource UiWeight}" FontSize="14" Language="sv-SE">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="48" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
     </shell:WindowChrome.WindowChrome>
 
     <!-- Fallback frame for Windows 10; on Windows 11 the system draws a rounded border instead. -->
-    <Border x:Name="WindowFrame" BorderBrush="{StaticResource Line}" BorderThickness="1">
+    <Border x:Name="WindowFrame" BorderBrush="{StaticResource Background}" BorderThickness="1">
         <Grid Margin="20,0,20,20">
             <Grid.RowDefinitions>
                 <RowDefinition Height="48"/>

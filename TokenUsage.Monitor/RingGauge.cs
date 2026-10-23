@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Windows;
+using System.Windows.Documents;
 using System.Windows.Media;
 
 namespace TokenUsage.Monitor;
@@ -19,6 +20,10 @@ public class RingGauge : FrameworkElement
         nameof(TrackBrush), typeof(Brush), typeof(RingGauge),
         new FrameworkPropertyMetadata(new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)), FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty TrackEdgeBrushProperty = DependencyProperty.Register(
+        nameof(TrackEdgeBrush), typeof(Brush), typeof(RingGauge),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty ThicknessProperty = DependencyProperty.Register(
         nameof(Thickness), typeof(double), typeof(RingGauge),
         new FrameworkPropertyMetadata(12.0, FrameworkPropertyMetadataOptions.AffectsRender));
@@ -35,6 +40,8 @@ public class RingGauge : FrameworkElement
     public double? Value { get => (double?)GetValue(ValueProperty); set => SetValue(ValueProperty, value); }
     public Brush RingBrush { get => (Brush)GetValue(RingBrushProperty); set => SetValue(RingBrushProperty, value); }
     public Brush TrackBrush { get => (Brush)GetValue(TrackBrushProperty); set => SetValue(TrackBrushProperty, value); }
+    /// <summary>Optional 1 px line along the inner and outer edge of the ring, drawn over the fill.</summary>
+    public Brush? TrackEdgeBrush { get => (Brush?)GetValue(TrackEdgeBrushProperty); set => SetValue(TrackEdgeBrushProperty, value); }
     public double Thickness { get => (double)GetValue(ThicknessProperty); set => SetValue(ThicknessProperty, value); }
     public Brush Foreground { get => (Brush)GetValue(ForegroundProperty); set => SetValue(ForegroundProperty, value); }
     /// <summary>Small text under the percentage, such as "använt".</summary>
@@ -60,8 +67,18 @@ public class RingGauge : FrameworkElement
                 dc.DrawGeometry(null, pen, Arc(center, radius, fraction));
         }
 
+        if (TrackEdgeBrush is { } edge)
+        {
+            // Half a pixel in from each edge, so the lines stay inside the ring's bounds.
+            var edgePen = new Pen(edge, 1);
+            dc.DrawEllipse(null, edgePen, center, radius + Thickness / 2 - 0.5, radius + Thickness / 2 - 0.5);
+            dc.DrawEllipse(null, edgePen, center, radius - Thickness / 2 + 0.5, radius - Thickness / 2 + 0.5);
+        }
+
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-        var typeface = new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
+        // The window's font: the figure in its bold weight, the caption in the inherited one.
+        var family = TextElement.GetFontFamily(this);
+        var typeface = new Typeface(family, FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
         var text = Value is double p
             ? new FormattedText($"{p:0.#} %", CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface, size * 0.2, Foreground, dpi)
             : new FormattedText("inväntar\ndata", CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface, size * 0.1, Foreground, dpi);
@@ -74,7 +91,7 @@ public class RingGauge : FrameworkElement
             return;
         }
         var caption = new FormattedText(Caption, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface("Segoe UI"), size * 0.09, Foreground, dpi) { MaxTextWidth = size, TextAlignment = TextAlignment.Center };
+            new Typeface(family, FontStyles.Normal, TextElement.GetFontWeight(this), FontStretches.Normal), size * 0.09, Foreground, dpi) { MaxTextWidth = size, TextAlignment = TextAlignment.Center };
         var top = center.Y - (text.Height + caption.Height) / 2;
         dc.DrawText(text, new Point(center.X - size / 2, top));
         dc.PushOpacity(0.6);

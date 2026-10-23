@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:TokenUsage.Monitor">
     <StackPanel>
-        <ContentControl Style="{StaticResource Card}" Padding="24,20">
+        <ContentControl Style="{StaticResource OutlineCard}" Padding="24,20">
             <StackPanel>
                 <TextBlock x:Name="TitleText" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Muted}"/>
 
@@ -14,7 +14,7 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <local:RingGauge x:Name="Ring" Width="150" Height="150" Thickness="13" Caption="använt"
-                                     Foreground="{StaticResource Text}" TrackBrush="{StaticResource SurfaceRaised}"/>
+                                     Foreground="{StaticResource Text}" TrackBrush="{StaticResource Background}" TrackEdgeBrush="{StaticResource Accent}"/>
                     <StackPanel Grid.Column="1" Margin="24,0,0,0" VerticalAlignment="Center">
                         <TextBlock x:Name="LeftText" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap"/>
                         <TextBlock x:Name="ResetInText" FontSize="15" Foreground="{StaticResource Text}" Margin="0,4,0,0" TextWrapping="Wrap"/>
@@ -41,10 +41,10 @@
             </StackPanel>
         </ContentControl>
 
-        <ContentControl Style="{StaticResource Card}" Padding="20,16,20,14" Margin="0,16,0,0">
+        <ContentControl Style="{StaticResource OutlineCard}" Padding="20,16,20,14" Margin="0,16,0,0">
             <StackPanel>
                 <DockPanel Margin="0,0,0,10">
-                    <TextBlock DockPanel.Dock="Right" Style="{StaticResource Caption}" FontSize="11" Text="streckat: jämn takt till återställningen"/>
+                    <TextBlock DockPanel.Dock="Right" Style="{StaticResource Caption}" FontSize="12" Text="streckat: jämn takt till återställningen"/>
                     <TextBlock x:Name="ChartTitle" Style="{StaticResource Caption}" Text="Förbrukning i fönstret"/>
                 </DockPanel>
                 <local:UsageChart x:Name="Chart" Height="140" GridBrush="{StaticResource Line}" LabelBrush="{StaticResource Muted}"/>

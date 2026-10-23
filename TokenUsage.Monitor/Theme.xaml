@@ -1,33 +1,40 @@
-<!-- Dark graphite theme: lighter cards for depth, a warm orange accent for selection and navigation,
-     green/yellow/red only for how much of a limit is used. -->
+<!-- Yellow theme: a yellow window with black as the accent for borders, selection and navigation,
+     green/amber/red only for how much of a limit is used. -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <SolidColorBrush x:Key="Background" Color="#1B1C1F"/>
-    <SolidColorBrush x:Key="Surface" Color="#25272B"/>
-    <SolidColorBrush x:Key="SurfaceRaised" Color="#2E3136"/>
-    <SolidColorBrush x:Key="CardEdge" Color="#30333A"/>
-    <SolidColorBrush x:Key="Line" Color="#373A41"/>
-    <SolidColorBrush x:Key="Text" Color="#ECEDEE"/>
-    <SolidColorBrush x:Key="Muted" Color="#9A9EA6"/>
-    <SolidColorBrush x:Key="Faint" Color="#6E727A"/>
-    <SolidColorBrush x:Key="Accent" Color="#F08A3C"/>
-    <SolidColorBrush x:Key="AccentSoft" Color="#4A3322"/>
+    <SolidColorBrush x:Key="Background" Color="#F7E501"/>
+    <SolidColorBrush x:Key="Surface" Color="#E8D700"/>
+    <SolidColorBrush x:Key="SurfaceRaised" Color="#DCCB00"/>
+    <SolidColorBrush x:Key="CardEdge" Color="#CDBD00"/>
+    <SolidColorBrush x:Key="Line" Color="#B8A900"/>
+    <SolidColorBrush x:Key="Text" Color="#000000"/>
+    <SolidColorBrush x:Key="Muted" Color="#3F3A00"/>
+    <SolidColorBrush x:Key="Faint" Color="#5E5600"/>
+    <SolidColorBrush x:Key="Accent" Color="#000000"/>
+    <SolidColorBrush x:Key="Selection" Color="#1D3FD0"/>
+
+    <!-- Lato is embedded (Fonts/, OFL): Regular for all text, Bold where a style asks for weight. Popups such as
+         context menus and tooltips don't inherit the window's font, so their styles set it too. -->
+    <FontFamily x:Key="UiFont">pack://application:,,,/TokenUsage.Monitor;component/Fonts/#Lato</FontFamily>
+    <FontWeight x:Key="UiWeight">Normal</FontWeight>
 
     <!-- A raised surface. The shadow sits on its own layer so it doesn't soften the text. -->
     <Style x:Key="Card" TargetType="ContentControl">
         <Setter Property="Padding" Value="20"/>
+        <Setter Property="Background" Value="{StaticResource Surface}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CardEdge}"/>
         <Setter Property="Focusable" Value="False"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContentControl">
                     <Grid>
-                        <Border Background="{StaticResource Surface}" CornerRadius="10">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="10">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="18" ShadowDepth="3" Direction="270" Opacity="0.35" Color="Black"/>
                             </Border.Effect>
                         </Border>
-                        <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource CardEdge}" BorderThickness="1"
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
                                 CornerRadius="10" Padding="{TemplateBinding Padding}">
                             <ContentPresenter/>
                         </Border>
@@ -37,9 +44,15 @@
         </Setter>
     </Style>
 
+    <!-- A card drawn only as an accent outline; without a surface it casts no shadow either. -->
+    <Style x:Key="OutlineCard" TargetType="ContentControl" BasedOn="{StaticResource Card}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+    </Style>
+
     <Style x:Key="Caption" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{StaticResource Muted}"/>
-        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontSize" Value="13"/>
     </Style>
     <Style x:Key="FigureValue" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{StaticResource Text}"/>
@@ -47,7 +60,7 @@
         <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
     <Style x:Key="FigureLabel" TargetType="TextBlock" BasedOn="{StaticResource Caption}">
-        <Setter Property="FontSize" Value="11.5"/>
+        <Setter Property="FontSize" Value="12.5"/>
         <Setter Property="Margin" Value="0,2,0,0"/>
     </Style>
 
@@ -105,6 +118,31 @@
         </Setter>
     </Style>
 
+    <!-- A filled button in the accent colour; it dims on hover and press instead of changing colour. -->
+    <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Background" Value="{StaticResource Accent}"/>
+        <Setter Property="Foreground" Value="{StaticResource Background}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="1" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.7"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ComboBox: the whole box is one toggle that opens a dark drop-down. -->
     <Style x:Key="ComboToggle" TargetType="ToggleButton">
         <Setter Property="Focusable" Value="False"/>
@@ -112,17 +150,18 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
-                    <Border x:Name="Bd" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="6">
+                    <Border x:Name="Bd" Background="Transparent" BorderBrush="{StaticResource Accent}" BorderThickness="1" CornerRadius="6">
                         <Path x:Name="Arrow" Data="M0,0 L4.5,4.5 L9,0" Stroke="{StaticResource Muted}" StrokeThickness="1.5"
                               HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,2,12,0"/>
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource SurfaceRaised}"/>
-                        </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Accent}"/>
                             <Setter TargetName="Arrow" Property="Stroke" Value="{StaticResource Accent}"/>
+                        </Trigger>
+                        <!-- After IsChecked, so the arrow stays dark on the accent fill while the list is open. -->
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Accent}"/>
+                            <Setter TargetName="Arrow" Property="Stroke" Value="{StaticResource Background}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -139,16 +178,16 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBox">
                     <Grid x:Name="Root">
-                        <ToggleButton Style="{StaticResource ComboToggle}"
+                        <ToggleButton x:Name="Toggle" Style="{StaticResource ComboToggle}"
                                       IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
-                        <ContentPresenter IsHitTestVisible="False" Margin="12,0,32,0" VerticalAlignment="Center"
+                        <ContentPresenter x:Name="Selected" IsHitTestVisible="False" Margin="12,0,32,0" VerticalAlignment="Center"
                                           Content="{TemplateBinding SelectionBoxItem}"
                                           ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
                                           ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
                                           ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"/>
                         <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" VerticalOffset="4"
                                AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
-                            <Border Background="{StaticResource SurfaceRaised}" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                            <Border Background="{StaticResource Background}" BorderBrush="{StaticResource Accent}" BorderThickness="1"
                                     CornerRadius="6" Padding="4" MinWidth="{Binding ActualWidth, ElementName=Root}"
                                     MaxHeight="{TemplateBinding MaxDropDownHeight}">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -158,6 +197,9 @@
                         </Popup>
                     </Grid>
                     <ControlTemplate.Triggers>
+                        <Trigger SourceName="Toggle" Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Selected" Property="TextElement.Foreground" Value="{StaticResource Background}"/>
+                        </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Root" Property="Opacity" Value="0.5"/>
                         </Trigger>
@@ -176,11 +218,13 @@
                         <ContentPresenter/>
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsHighlighted" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="#3A3D44"/>
-                        </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter Property="Foreground" Value="{StaticResource Accent}"/>
+                        </Trigger>
+                        <!-- After IsSelected, so a highlighted selected item gets the dark text too. -->
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Accent}"/>
+                            <Setter Property="Foreground" Value="{StaticResource Background}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -189,12 +233,14 @@
     </Style>
 
     <Style TargetType="ContextMenu">
+        <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
+        <Setter Property="FontWeight" Value="{StaticResource UiWeight}"/>
         <Setter Property="Foreground" Value="{StaticResource Text}"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContextMenu">
-                    <Border Background="{StaticResource SurfaceRaised}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="4" CornerRadius="6">
+                    <Border Background="{StaticResource Background}" BorderBrush="{StaticResource Accent}" BorderThickness="1" Padding="4" CornerRadius="6">
                         <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
                     </Border>
                 </ControlTemplate>
@@ -212,13 +258,15 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"/>
-                            <TextBlock Grid.Column="1" Text="{TemplateBinding InputGestureText}" Margin="24,0,0,0"
+                            <TextBlock x:Name="Gesture" Grid.Column="1" Text="{TemplateBinding InputGestureText}" Margin="24,0,0,0"
                                        Foreground="{StaticResource Muted}"/>
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
-                            <Setter TargetName="Item" Property="Background" Value="#3A3D44"/>
+                            <Setter TargetName="Item" Property="Background" Value="{StaticResource Accent}"/>
+                            <Setter Property="Foreground" Value="{StaticResource Background}"/>
+                            <Setter TargetName="Gesture" Property="Foreground" Value="{StaticResource Background}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Item" Property="Opacity" Value="0.45"/>
@@ -230,8 +278,10 @@
     </Style>
 
     <Style TargetType="ToolTip">
+        <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
+        <Setter Property="FontWeight" Value="{StaticResource UiWeight}"/>
         <Setter Property="Foreground" Value="{StaticResource Text}"/>
-        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontSize" Value="13"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToolTip">
@@ -260,10 +310,10 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
-                    <Border x:Name="Bd" Background="#474B53" CornerRadius="4"/>
+                    <Border x:Name="Bd" Background="{StaticResource Faint}" CornerRadius="4"/>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="#5C616A"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Muted}"/>
                         </Trigger>
                         <Trigger Property="IsDragging" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource Muted}"/>
@@ -325,7 +375,6 @@
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="{StaticResource Text}"/>
         <Setter Property="RowBackground" Value="Transparent"/>
-        <Setter Property="AlternatingRowBackground" Value="#292B30"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="HorizontalGridLinesBrush" Value="Transparent"/>
         <Setter Property="GridLinesVisibility" Value="None"/>
@@ -334,12 +383,12 @@
         <Setter Property="IsReadOnly" Value="True"/>
         <Setter Property="SelectionMode" Value="Single"/>
         <Setter Property="CanUserResizeRows" Value="False"/>
-        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontSize" Value="14"/>
     </Style>
     <Style TargetType="DataGridColumnHeader">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="{StaticResource Muted}"/>
-        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontSize" Value="13"/>
         <Setter Property="Padding" Value="10,4,10,8"/>
         <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
         <Setter Property="BorderThickness" Value="0,0,0,1"/>
@@ -358,8 +407,10 @@
         </Setter>
         <Style.Triggers>
             <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background" Value="{StaticResource AccentSoft}"/>
-                <Setter Property="Foreground" Value="#FFFFFF"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{StaticResource Selection}"/>
+                <!-- Bold as well as blue, so the selection doesn't rest on colour alone. -->
+                <Setter Property="FontWeight" Value="SemiBold"/>
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -368,6 +419,11 @@
     </Style>
     <Style x:Key="MutedNumber" TargetType="TextBlock" BasedOn="{StaticResource Number}">
         <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridCell}}" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource Selection}"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
     <Style x:Key="StrongNumber" TargetType="TextBlock" BasedOn="{StaticResource Number}">
         <Setter Property="FontWeight" Value="SemiBold"/>

@@ -5,7 +5,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="TokenUsageMonitor" Width="1060" Height="720" MinWidth="560" MinHeight="460"
         WindowStyle="None" ResizeMode="CanResizeWithGrip" StateChanged="Window_StateChanged"
-        Background="{StaticResource Background}" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="14" Language="sv-SE">
+        Background="{StaticResource Background}" Foreground="{StaticResource Text}" FontFamily="{StaticResource UiFont}" FontWeight="{StaticResource UiWeight}" FontSize="14" Language="sv-SE">
     <!-- Keeps dragging, double-click to maximize, Aero Snap and edge resizing without the system title bar. -->
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="32" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
@@ -16,7 +16,7 @@
             <Setter Property="Width" Value="32"/>
             <Setter Property="Height" Value="32"/>
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#C8C8C8"/>
+            <Setter Property="Foreground" Value="{StaticResource Accent}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/>
             <Setter Property="FontSize" Value="10"/>
@@ -34,11 +34,10 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#33363B"/>
-                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                    <Setter Property="Background" Value="{StaticResource SurfaceRaised}"/>
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#45484E"/>
+                    <Setter Property="Background" Value="{StaticResource CardEdge}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -54,14 +53,14 @@
             </Style.Triggers>
         </Style>
 
-        <!-- Session names are secondary; a run in the same session as the row above fades further. -->
         <Style x:Key="SessionCell" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource Muted}"/>
             <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
             <Setter Property="ToolTip" Value="{Binding SessionToolTip}"/>
+        </Style>
+        <Style x:Key="ModelCell" TargetType="TextBlock" BasedOn="{StaticResource Caption}">
             <Style.Triggers>
-                <DataTrigger Binding="{Binding SameSessionAsAbove}" Value="True">
-                    <Setter Property="Opacity" Value="0.4"/>
+                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridCell}}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource Selection}"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -86,7 +85,7 @@
     </Window.Resources>
 
     <!-- Fallback frame for when Windows doesn't draw a rounded border (Windows 10); code-behind decides. -->
-    <Border x:Name="WindowFrame" BorderBrush="{StaticResource Line}" BorderThickness="1">
+    <Border x:Name="WindowFrame" BorderBrush="{StaticResource Background}" BorderThickness="1">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="32"/>
@@ -96,7 +95,7 @@
             <!-- Title bar: the empty area is the WindowChrome caption, so it drags and double-click maximizes. -->
             <Grid Background="Transparent">
                 <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
-                           Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                           Foreground="{StaticResource Accent}" FontSize="13" VerticalAlignment="Center" Margin="12,0,0,0"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Style="{StaticResource CaptionButton}" Content="&#xE921;" ToolTip="Minimera" Click="Minimize_Click"/>
                     <Button x:Name="MaximizeButton" Style="{StaticResource CaptionButton}" Content="&#xE922;" ToolTip="Maximera"
@@ -148,25 +147,25 @@
                             </ComboBox>
                             <ComboBox x:Name="SessionFilter" Width="300" Margin="8,0,0,0" DisplayMemberPath="Text"
                                       SelectionChanged="SessionFilter_SelectionChanged"/>
-                            <Button Content="Uppdatera" Margin="8,0,0,0" Click="Refresh_Click"/>
+                            <Button Content="Uppdatera" Style="{StaticResource AccentButton}" Margin="8,0,0,0" Click="Refresh_Click"/>
                             <TextBlock x:Name="RunsSummary" Style="{StaticResource Caption}" VerticalAlignment="Center" Margin="12,0,0,0"
                                        TextAlignment="Right" TextTrimming="CharacterEllipsis"/>
                         </DockPanel>
 
                         <UniformGrid Grid.Row="1" Columns="3" Margin="-8,16,-8,16">
-                            <ContentControl Style="{StaticResource Card}" Padding="18,14" Margin="8,0">
+                            <ContentControl Style="{StaticResource OutlineCard}" Padding="18,14" Margin="8,0">
                                 <StackPanel>
                                     <TextBlock x:Name="RunCount" Style="{StaticResource SummaryValue}" Text="–"/>
                                     <TextBlock Style="{StaticResource FigureLabel}" Text="körningar"/>
                                 </StackPanel>
                             </ContentControl>
-                            <ContentControl Style="{StaticResource Card}" Padding="18,14" Margin="8,0">
+                            <ContentControl Style="{StaticResource OutlineCard}" Padding="18,14" Margin="8,0">
                                 <StackPanel>
                                     <TextBlock x:Name="ResponseCount" Style="{StaticResource SummaryValue}" Text="–"/>
                                     <TextBlock Style="{StaticResource FigureLabel}" Text="svar"/>
                                 </StackPanel>
                             </ContentControl>
-                            <ContentControl Style="{StaticResource Card}" Padding="18,14" Margin="8,0">
+                            <ContentControl Style="{StaticResource OutlineCard}" Padding="18,14" Margin="8,0">
                                 <StackPanel>
                                     <TextBlock x:Name="CostTotal" Style="{StaticResource SummaryValue}" Text="–"/>
                                     <TextBlock Style="{StaticResource FigureLabel}" Text="API-pris"/>
@@ -174,8 +173,8 @@
                             </ContentControl>
                         </UniformGrid>
 
-                        <ContentControl Grid.Row="2" Style="{StaticResource Card}" Padding="6,10,6,6">
-                            <DataGrid x:Name="Runs" SelectionChanged="Runs_SelectionChanged" Sorting="Runs_Sorting"
+                        <ContentControl Grid.Row="2" Style="{StaticResource OutlineCard}" Padding="6,10,6,6">
+                            <DataGrid x:Name="Runs" SelectionChanged="Runs_SelectionChanged"
                                       ContextMenuOpening="Runs_ContextMenuOpening" PreviewKeyDown="Runs_PreviewKeyDown">
                                 <DataGrid.ContextMenu>
                                     <ContextMenu>
@@ -202,7 +201,7 @@
                         <GridSplitter Grid.Row="3" Height="12" HorizontalAlignment="Stretch" Background="Transparent"/>
 
                         <!-- The chosen run: its details, then how agents and models split the cost. -->
-                        <ContentControl Grid.Row="4" Style="{StaticResource Card}" Padding="16,14,16,6">
+                        <ContentControl Grid.Row="4" Style="{StaticResource OutlineCard}" Padding="16,14,16,6">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -213,7 +212,7 @@
                                 <DataGrid x:Name="Agents" Grid.Row="1" Margin="-10,8,-10,0">
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Agent" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource PromptCell}"/>
-                                        <DataGridTextColumn Header="Modell" Binding="{Binding Model}" ElementStyle="{StaticResource Caption}"/>
+                                        <DataGridTextColumn Header="Modell" Binding="{Binding Model}" ElementStyle="{StaticResource ModelCell}"/>
                                         <DataGridTextColumn Header="Svar" Binding="{Binding Responses, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
                                         <DataGridTextColumn Header="In" Binding="{Binding Input, StringFormat=N0}" ElementStyle="{StaticResource MutedNumber}"/>
                                         <DataGridTextColumn Header="Utskrivet" Binding="{Binding Output, StringFormat=N0}" ElementStyle="{StaticResource Number}"/>
